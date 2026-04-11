@@ -27,6 +27,22 @@ export OPENAI_MODEL="gpt-4.1-mini"
 
 Without `OPENAI_API_KEY`, the app still works with manual ingredient descriptions and text input.
 
+## Logo placement
+
+If you want the app to show your brand logo automatically, put one of these files into:
+
+`assets/`
+
+Supported filenames:
+
+- `assets/logo.svg`
+- `assets/logo.png`
+- `assets/logo.webp`
+- `assets/logo.jpg`
+- `assets/logo.jpeg`
+
+The app will auto-detect the first one it finds and use it in the header and sidebar.
+
 ## Recommended deploy flow
 
 This workspace contains multiple unrelated projects, so the cleanest production path is:

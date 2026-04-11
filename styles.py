@@ -101,6 +101,45 @@ def inject_styles() -> None:
             color: #fffef9;
         }
 
+        .brand-lockup {
+            display: flex;
+            align-items: center;
+            gap: 0.85rem;
+            margin-bottom: 0.95rem;
+        }
+
+        .brand-mark,
+        .brand-fallback {
+            width: 56px;
+            height: 56px;
+            border-radius: 16px;
+            background: rgba(255, 255, 255, 0.18);
+            border: 1px solid rgba(255, 255, 255, 0.18);
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .brand-fallback {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            letter-spacing: 0.06em;
+            color: #fffef9;
+        }
+
+        .brand-name {
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: #fffef9;
+        }
+
+        .brand-domain {
+            font-size: 0.83rem;
+            color: rgba(255, 250, 245, 0.82);
+        }
+
         .hero-shell:before,
         .hero-shell:after {
             content: "";
@@ -389,6 +428,48 @@ def inject_styles() -> None:
             border: 1px solid rgba(20, 54, 59, 0.08);
             margin-bottom: 1rem;
             line-height: 1.6;
+        }
+
+        .sidebar-brand {
+            display: grid;
+            grid-template-columns: 54px 1fr;
+            gap: 0.85rem;
+            align-items: center;
+            padding: 0.95rem 1rem;
+            border-radius: 20px;
+            background: rgba(255, 255, 255, 0.84);
+            border: 1px solid rgba(20, 54, 59, 0.08);
+            margin-bottom: 0.85rem;
+        }
+
+        .sidebar-brand-mark {
+            width: 54px;
+            height: 54px;
+            border-radius: 15px;
+            object-fit: cover;
+            background: rgba(20, 54, 59, 0.08);
+        }
+
+        .sidebar-fallback {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 800;
+            color: var(--pet-ink);
+            letter-spacing: 0.06em;
+        }
+
+        .sidebar-brand-name {
+            font-family: Georgia, "Times New Roman", serif;
+            font-size: 1.15rem;
+            color: var(--pet-ink);
+            margin-bottom: 0.12rem;
+        }
+
+        .sidebar-brand-copy {
+            font-size: 0.88rem;
+            line-height: 1.45;
+            color: var(--pet-soft);
         }
 
         @media (max-width: 900px) {

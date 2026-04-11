@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import base64
 from datetime import datetime
 from html import escape
+from pathlib import Path
 from uuid import uuid4
 
 import streamlit as st
@@ -41,6 +43,30 @@ SYMPTOM_OPTIONS = [
 
 AMOUNT_OPTIONS = ["Lick or crumb", "Small bite", "Moderate portion", "Large portion"]
 TIME_OPTIONS = ["Within 30 minutes", "30 minutes to 2 hours", "2 to 6 hours ago", "More than 6 hours ago"]
+ASSETS_DIR = Path(__file__).parent / "assets"
+LOGO_CANDIDATES = ["logo.svg", "logo.png", "logo.webp", "logo.jpg", "logo.jpeg"]
+
+
+@st.cache_data(show_spinner=False)
+def load_logo_data_uri() -> str:
+    mime_by_suffix = {
+        ".svg": "image/svg+xml",
+        ".png": "image/png",
+        ".webp": "image/webp",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+    }
+
+    for filename in LOGO_CANDIDATES:
+        path = ASSETS_DIR / filename
+        if not path.exists():
+            continue
+
+        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
+        mime_type = mime_by_suffix.get(path.suffix.lower(), "image/png")
+        return f"data:{mime_type};base64,{encoded}"
+
+    return ""
 
 
 def ensure_state() -> None:
@@ -126,13 +152,25 @@ def current_pet_summary(profile: dict[str, object]) -> str:
 def render_header(current_pet: dict[str, object]) -> None:
     photo_mode = "Photo + text" if has_openai_key() else "Text first"
     right_copy = current_pet_summary(current_pet)
+    logo_data_uri = load_logo_data_uri()
+    logo_markup = (
+        f'<img src="{logo_data_uri}" alt="Pet Help AI logo" class="brand-mark" />'
+        if logo_data_uri
+        else '<div class="brand-fallback">PH</div>'
+    )
 
     left_col, right_col = st.columns([1.5, 0.95], gap="large")
     with left_col:
         st.markdown(
             f"""
             <div class="hero-shell">
-                <div class="hero-eyebrow">Pet Help AI • pethelpai.com</div>
+                <div class="brand-lockup">
+                    {logo_markup}
+                    <div>
+                        <div class="brand-name">Pet Help AI</div>
+                        <div class="brand-domain">pethelpai.com</div>
+                    </div>
+                </div>
                 <h1 class="hero-title">Know what's safe for your pet in seconds.</h1>
                 <p class="hero-copy">
                     Built for quick food questions, ingredient checks, and those anxious
@@ -152,7 +190,7 @@ def render_header(current_pet: dict[str, object]) -> None:
         st.markdown(
             f"""
             <div class="status-card">
-                <div class="status-label">Active Pet</div>
+                <div class="status-label">Active Pet Profile</div>
                 <p class="status-name">{escape(str(current_pet.get("name") or "Draft pet"))}</p>
                 <p class="status-copy">{escape(right_copy)}</p>
                 <div class="status-row">
@@ -410,7 +448,24 @@ def main() -> None:
     inject_styles()
 
     with st.sidebar:
-        st.markdown("## Pet Help AI")
+        logo_data_uri = load_logo_data_uri()
+        sidebar_logo = (
+            f'<img src="{logo_data_uri}" alt="Pet Help AI logo" class="sidebar-brand-mark" />'
+            if logo_data_uri
+            else '<div class="sidebar-brand-mark sidebar-fallback">PH</div>'
+        )
+        st.markdown(
+            f"""
+            <div class="sidebar-brand">
+                {sidebar_logo}
+                <div>
+                    <div class="sidebar-brand-name">Pet Help AI</div>
+                    <div class="sidebar-brand-copy">Fast, minimal food safety checks for pet parents.</div>
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True,
+        )
         st.caption("Fast, minimal food safety checks for pet parents.")
         current_pet = sidebar_profile_editor()
 
