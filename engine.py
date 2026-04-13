@@ -501,6 +501,394 @@ def _safe_alternatives(species: str) -> list[str]:
     ]
 
 
+def _safe_swap_catalog(species: str) -> dict[str, list[dict[str, str]]]:
+    if species == "cat":
+        return {
+            "general": [
+                {
+                    "title": "Freeze-dried chicken cat treats",
+                    "query": "freeze dried chicken cat treats",
+                    "why": "Single-ingredient treats are easier to audit for hidden seasonings or sweeteners.",
+                },
+                {
+                    "title": "Limited-ingredient cat treats",
+                    "query": "limited ingredient cat treats",
+                    "why": "Short ingredient lists make it easier to avoid surprise fillers and problem ingredients.",
+                },
+                {
+                    "title": "Simple lickable cat treats",
+                    "query": "lickable cat treats limited ingredient",
+                    "why": "A pet-formulated lickable treat is usually a calmer choice than human snacks.",
+                },
+            ],
+            "low_fat": [
+                {
+                    "title": "Sensitive stomach cat treats",
+                    "query": "sensitive stomach cat treats",
+                    "why": "These are easier to use when rich or greasy human food is the problem.",
+                },
+                {
+                    "title": "Freeze-dried chicken cat treats",
+                    "query": "freeze dried chicken cat treats",
+                    "why": "Lean, simple protein is usually a cleaner swap than fatty leftovers.",
+                },
+                {
+                    "title": "Digestive support cat topper",
+                    "query": "digestive support cat food topper",
+                    "why": "A small pet-formulated topper can feel rewarding without the grease of table scraps.",
+                },
+            ],
+            "simple_label": [
+                {
+                    "title": "Limited-ingredient cat treats",
+                    "query": "limited ingredient cat treats",
+                    "why": "When the risky part is hidden in the label, simpler is better.",
+                },
+                {
+                    "title": "Single-protein cat treats",
+                    "query": "single protein cat treats",
+                    "why": "Single-protein products are easier to compare against allergy and sensitivity lists.",
+                },
+                {
+                    "title": "Simple lickable cat treats",
+                    "query": "lickable cat treats limited ingredient",
+                    "why": "This keeps the reward feeling while reducing mystery ingredients.",
+                },
+            ],
+            "bland": [
+                {
+                    "title": "Sensitive stomach cat wet food",
+                    "query": "sensitive stomach cat wet food",
+                    "why": "A gentler wet food option is often better than salty or spicy human food.",
+                },
+                {
+                    "title": "Limited-ingredient cat treats",
+                    "query": "limited ingredient cat treats",
+                    "why": "Simple treats help avoid extra spices, sodium, and sauces.",
+                },
+                {
+                    "title": "Simple lickable cat treats",
+                    "query": "lickable cat treats limited ingredient",
+                    "why": "These are easier to portion than random kitchen scraps.",
+                },
+            ],
+            "low_sugar": [
+                {
+                    "title": "Protein-first cat treats",
+                    "query": "high protein cat treats limited ingredient",
+                    "why": "Protein-forward treats are a better direction than dessert-type foods.",
+                },
+                {
+                    "title": "Freeze-dried chicken cat treats",
+                    "query": "freeze dried chicken cat treats",
+                    "why": "A straightforward protein treat is cleaner than sugary human food.",
+                },
+                {
+                    "title": "Limited-ingredient cat treats",
+                    "query": "limited ingredient cat treats",
+                    "why": "Short labels help you avoid syrupy fillers and extras.",
+                },
+            ],
+            "low_sodium": [
+                {
+                    "title": "Low sodium cat food topper",
+                    "query": "low sodium cat food topper",
+                    "why": "This is a better direction than salty chips, sauces, or deli-style leftovers.",
+                },
+                {
+                    "title": "Freeze-dried chicken cat treats",
+                    "query": "freeze dried chicken cat treats",
+                    "why": "Plain protein treats are usually simpler than seasoned human foods.",
+                },
+                {
+                    "title": "Limited-ingredient cat treats",
+                    "query": "limited ingredient cat treats",
+                    "why": "Fewer ingredients usually means fewer hidden salts and flavorings.",
+                },
+            ],
+            "soft_small": [
+                {
+                    "title": "Soft cat treats",
+                    "query": "soft cat treats limited ingredient",
+                    "why": "Soft, bite-sized treats are easier than risky hard objects or bones.",
+                },
+                {
+                    "title": "Simple lickable cat treats",
+                    "query": "lickable cat treats limited ingredient",
+                    "why": "Lickable treats remove the risk of splintering or hard chunks.",
+                },
+                {
+                    "title": "Small-bite cat treats",
+                    "query": "small bite cat treats",
+                    "why": "Small treats help with portion control and reduce choking-style concerns.",
+                },
+            ],
+            "cooked_gentle": [
+                {
+                    "title": "Sensitive stomach cat wet food",
+                    "query": "sensitive stomach cat wet food",
+                    "why": "A cooked, pet-formulated option is safer than raw human food.",
+                },
+                {
+                    "title": "Digestive support cat topper",
+                    "query": "digestive support cat food topper",
+                    "why": "This can add excitement without jumping into raw or risky add-ons.",
+                },
+                {
+                    "title": "Limited-ingredient cat treats",
+                    "query": "limited ingredient cat treats",
+                    "why": "Keeps the ingredient list short and predictable.",
+                },
+            ],
+        }
+
+    return {
+        "general": [
+            {
+                "title": "Limited-ingredient dog biscuits",
+                "query": "limited ingredient dog biscuits",
+                "why": "Simple labels are easier to trust than random human food ingredients.",
+            },
+            {
+                "title": "Freeze-dried chicken dog treats",
+                "query": "freeze dried chicken dog treats",
+                "why": "Single-ingredient protein treats reduce hidden oils, onions, and sweeteners.",
+            },
+            {
+                "title": "Pumpkin dog treats",
+                "query": "pumpkin dog treats limited ingredient",
+                "why": "Pumpkin-style treats are a gentler swap than rich table scraps.",
+            },
+        ],
+        "low_fat": [
+            {
+                "title": "Low-fat dog treats",
+                "query": "low fat dog treats",
+                "why": "These are a better direction when greasy or fried food is the issue.",
+            },
+            {
+                "title": "Freeze-dried chicken dog treats",
+                "query": "freeze dried chicken dog treats",
+                "why": "Lean protein is usually cleaner than pizza, bacon, or buttery leftovers.",
+            },
+            {
+                "title": "Digestive support dog treats",
+                "query": "digestive support dog treats",
+                "why": "This gives a reward moment without the rich fat load of table scraps.",
+            },
+        ],
+        "simple_label": [
+            {
+                "title": "Limited-ingredient dog biscuits",
+                "query": "limited ingredient dog biscuits",
+                "why": "Short ingredient lists make hidden xylitol, garlic, or other add-ins easier to avoid.",
+            },
+            {
+                "title": "Single-protein dog treats",
+                "query": "single protein dog treats",
+                "why": "One clear protein is easier to check against allergies or sensitivities.",
+            },
+            {
+                "title": "Freeze-dried chicken dog treats",
+                "query": "freeze dried chicken dog treats",
+                "why": "A simple protein treat is cleaner than label-heavy human snacks.",
+            },
+        ],
+        "bland": [
+            {
+                "title": "Digestive support dog treats",
+                "query": "digestive support dog treats",
+                "why": "These are a better fit than salty, spicy, or heavily seasoned food.",
+            },
+            {
+                "title": "Pumpkin dog treats",
+                "query": "pumpkin dog treats limited ingredient",
+                "why": "Pumpkin-style treats are usually gentler than fries, chips, or saucy leftovers.",
+            },
+            {
+                "title": "Limited-ingredient dog treats",
+                "query": "limited ingredient dog treats",
+                "why": "A shorter label helps keep the flavorings and seasonings under control.",
+            },
+        ],
+        "low_sugar": [
+            {
+                "title": "Low-sugar dog treats",
+                "query": "low sugar dog treats",
+                "why": "Dessert-style human food is a bad trade when a dog-safe treat can do the same job.",
+            },
+            {
+                "title": "Single-protein dog treats",
+                "query": "single protein dog treats",
+                "why": "Protein-first treats avoid the syrup, frosting, and sugar problem entirely.",
+            },
+            {
+                "title": "Freeze-dried chicken dog treats",
+                "query": "freeze dried chicken dog treats",
+                "why": "One simple ingredient is easier than cookies, donuts, or candy-type foods.",
+            },
+        ],
+        "low_sodium": [
+            {
+                "title": "Low sodium dog treats",
+                "query": "low sodium dog treats",
+                "why": "A better choice when the risky food is salty, cured, or heavily seasoned.",
+            },
+            {
+                "title": "Limited-ingredient dog biscuits",
+                "query": "limited ingredient dog biscuits",
+                "why": "Short labels help you dodge extra salt and flavor boosters.",
+            },
+            {
+                "title": "Freeze-dried chicken dog treats",
+                "query": "freeze dried chicken dog treats",
+                "why": "Plain protein is usually cleaner than chips, jerky, or deli-style scraps.",
+            },
+        ],
+        "soft_small": [
+            {
+                "title": "Soft training treats for dogs",
+                "query": "soft training treats for dogs",
+                "why": "Soft, bite-sized treats are safer than hard bones or risky chunks.",
+            },
+            {
+                "title": "Limited-ingredient soft dog treats",
+                "query": "limited ingredient soft dog treats",
+                "why": "This keeps the reward small, soft, and easier to portion.",
+            },
+            {
+                "title": "Small-bite dog treats",
+                "query": "small bite dog treats",
+                "why": "Tiny portion sizes are easier to manage after a risky food question.",
+            },
+        ],
+        "cooked_gentle": [
+            {
+                "title": "Digestive support dog topper",
+                "query": "digestive support dog food topper",
+                "why": "A pet-formulated topper is safer than raw or restaurant-style add-ons.",
+            },
+            {
+                "title": "Limited-ingredient dog treats",
+                "query": "limited ingredient dog treats",
+                "why": "A shorter, cooked ingredient list is easier to trust than raw foods.",
+            },
+            {
+                "title": "Freeze-dried chicken dog treats",
+                "query": "freeze dried chicken dog treats",
+                "why": "A simple protein swap is cleaner than raw meat or mixed leftovers.",
+            },
+        ],
+    }
+
+
+def _safe_swap_focus(
+    verdict: str,
+    toxic_matches: list[dict[str, Any]],
+    caution_matches: list[dict[str, Any]],
+    conditions: set[str],
+    allergy_text: str,
+) -> str:
+    if "pancreatitis" in conditions:
+        return "low_fat"
+    if "kidney disease" in conditions:
+        return "low_sodium"
+    if "diabetes" in conditions:
+        return "low_sugar"
+    if "sensitive stomach" in conditions:
+        return "bland"
+    if allergy_text.strip():
+        return "simple_label"
+
+    toxic_categories = {match.get("category", "") for match in toxic_matches}
+    caution_categories = {match.get("category", "") for match in caution_matches}
+
+    if "obstruction" in toxic_categories:
+        return "soft_small"
+    if "toxin" in toxic_categories:
+        return "simple_label"
+    if "fatty" in caution_categories:
+        return "low_fat"
+    if "salty" in caution_categories or "spicy" in caution_categories:
+        return "bland"
+    if "sweet" in caution_categories:
+        return "low_sugar"
+    if "raw" in caution_categories:
+        return "cooked_gentle"
+    if "label_check" in caution_categories:
+        return "simple_label"
+    if verdict != "Safe":
+        return "simple_label"
+    return "general"
+
+
+def _safe_swap_title(verdict: str, pet_name: str, already_ate: bool) -> str:
+    if verdict == "Avoid":
+        return f"Safer swaps for {pet_name}"
+    if verdict == "Caution":
+        return f"Cleaner options for {pet_name}"
+    if already_ate:
+        return f"Good backup options for {pet_name}"
+    return f"Stock-up favorites for {pet_name}"
+
+
+def _safe_swap_subtitle(verdict: str, focus: str, species: str, already_ate: bool) -> str:
+    species_word = "dog" if species == "dog" else "cat"
+    focus_copy = {
+        "low_fat": "Lean and lower-fat picks make more sense than greasy leftovers.",
+        "simple_label": "Short ingredient lists are the easiest way to avoid hidden problem ingredients.",
+        "bland": "Simple, gentler options are better than salty, spicy, or heavily seasoned foods.",
+        "low_sugar": "Skip dessert-type foods and steer toward protein-first pet treats.",
+        "low_sodium": "Lower-sodium, less processed choices are the safer lane here.",
+        "soft_small": "Small, soft treats are a better fit than hard objects, bones, or chunky scraps.",
+        "cooked_gentle": "Cooked, pet-formulated options are a safer direction than raw human foods.",
+        "general": "Pet-formulated treats are still a cleaner baseline than random human food.",
+    }.get(focus, "Simple pet treats are usually the safer fallback.")
+
+    if verdict == "Avoid" and already_ate:
+        return (
+            f"Handle the urgent situation first. After that, these are the kinds of {species_word}-safe options "
+            "worth keeping around so the same risky food question does not come up again."
+        )
+
+    return focus_copy
+
+
+def _safe_swap_items(
+    species: str,
+    focus: str,
+) -> list[dict[str, str]]:
+    catalog = _safe_swap_catalog(species)
+    return catalog.get(focus) or catalog["general"]
+
+
+def _build_safe_swap(
+    species: str,
+    pet_name: str,
+    verdict: str,
+    toxic_matches: list[dict[str, Any]],
+    caution_matches: list[dict[str, Any]],
+    conditions: set[str],
+    allergy_text: str,
+    already_ate: bool,
+) -> dict[str, Any]:
+    focus = _safe_swap_focus(
+        verdict=verdict,
+        toxic_matches=toxic_matches,
+        caution_matches=caution_matches,
+        conditions=conditions,
+        allergy_text=allergy_text,
+    )
+    items = _safe_swap_items(species, focus)
+    return {
+        "focus": focus,
+        "title": _safe_swap_title(verdict, pet_name, already_ate),
+        "subtitle": _safe_swap_subtitle(verdict, focus, species, already_ate),
+        "note": "Search links only. Double-check the full ingredient label before buying anything new.",
+        "items": items,
+    }
+
+
 def analyze_food(
     food_text: str,
     pet_profile: dict[str, Any],
@@ -637,6 +1025,16 @@ def analyze_food(
         "actions": _dedupe(actions),
         "watch_for": _dedupe(watch_for),
         "alternatives": _safe_alternatives(species),
+        "safe_swap": _build_safe_swap(
+            species=species,
+            pet_name=pet_name,
+            verdict=verdict,
+            toxic_matches=toxic_matches,
+            caution_matches=caution_matches,
+            conditions=conditions,
+            allergy_text=allergies,
+            already_ate=already_ate,
+        ),
         "matched_labels": _dedupe(match_labels),
         "confidence": confidence,
         "already_ate": already_ate,
@@ -676,6 +1074,15 @@ def answer_follow_up(question: str, analysis: dict[str, Any], pet_profile: dict[
 
     if any(token in normalized_question for token in ["instead", "alternative", "safer", "treat"]):
         return f"Safer ideas for {pet_name}: {_join_labels(analysis.get('alternatives', []))}."
+
+    if any(token in normalized_question for token in ["buy", "shop", "order"]):
+        safe_swap = analysis.get("safe_swap", {})
+        items = [item["title"] for item in safe_swap.get("items", [])]
+        if items:
+            return (
+                f"If you want a cleaner replacement, start with {_join_labels(items[:3])}. "
+                "Pet Help AI treats those as search ideas, not guaranteed medical recommendations, so always double-check labels."
+            )
 
     if analysis.get("verdict") == "Safe":
         return (

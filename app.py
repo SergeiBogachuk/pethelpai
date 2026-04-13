@@ -4,6 +4,7 @@ import base64
 from datetime import datetime
 from html import escape
 from pathlib import Path
+from urllib.parse import quote_plus
 from uuid import uuid4
 
 import streamlit as st
@@ -252,6 +253,68 @@ def render_detail_card(title: str, items: list[str]) -> None:
     )
 
 
+def shop_search_url(provider: str, query: str) -> str:
+    encoded = quote_plus(query)
+    if provider == "Chewy":
+        return f"https://www.chewy.com/s?query={encoded}"
+    return f"https://www.amazon.com/s?k={encoded}"
+
+
+def render_safe_swap(analysis: dict[str, object]) -> None:
+    safe_swap = analysis.get("safe_swap") or {}
+    items = safe_swap.get("items") or []
+    if not items:
+        return
+
+    if analysis.get("verdict") == "Avoid" and analysis.get("already_ate"):
+        render_soft_note(
+            "This case is urgent enough that the immediate focus should stay on veterinary guidance. Safe Swap is better used for the next shopping run, not instead of care."
+        )
+        return
+
+    def _render_swap_body() -> None:
+        if safe_swap.get("subtitle"):
+            st.caption(str(safe_swap["subtitle"]))
+
+        swap_columns = st.columns(len(items), gap="large")
+        for index, (column, item) in enumerate(zip(swap_columns, items)):
+            with column:
+                st.markdown(
+                    f"""
+                    <div class="swap-card">
+                        <div class="swap-label">Swap Idea {index + 1}</div>
+                        <h4>{escape(str(item['title']))}</h4>
+                        <p>{escape(str(item['why']))}</p>
+                    </div>
+                    """,
+                    unsafe_allow_html=True,
+                )
+                link_col1, link_col2 = st.columns(2)
+                with link_col1:
+                    st.link_button(
+                        "Chewy",
+                        shop_search_url("Chewy", str(item["query"])),
+                        use_container_width=True,
+                    )
+                with link_col2:
+                    st.link_button(
+                        "Amazon",
+                        shop_search_url("Amazon", str(item["query"])),
+                        use_container_width=True,
+                    )
+
+        if safe_swap.get("note"):
+            st.caption(str(safe_swap["note"]))
+
+    if analysis.get("verdict") == "Safe":
+        with st.expander(str(safe_swap.get("title") or "Safe Swap"), expanded=False):
+            _render_swap_body()
+        return
+
+    st.markdown(f"### {escape(str(safe_swap.get('title') or 'Safe Swap'))}")
+    _render_swap_body()
+
+
 def render_analysis(analysis: dict[str, object]) -> None:
     verdict = str(analysis["verdict"]).lower()
     badge_color = str(analysis["badge_color"])
@@ -288,6 +351,8 @@ def render_analysis(analysis: dict[str, object]) -> None:
     with st.expander("Safer alternatives", expanded=False):
         for item in analysis["alternatives"]:
             st.write(f"- {item}")
+
+    render_safe_swap(analysis)
 
     if analysis.get("image_summary"):
         with st.expander("Image read", expanded=False):

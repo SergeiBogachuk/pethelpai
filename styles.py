@@ -374,6 +374,35 @@ def inject_styles() -> None:
             line-height: 1.58;
         }
 
+        .swap-card {
+            background: rgba(255, 255, 255, 0.78);
+            border: 1px solid rgba(20, 54, 59, 0.08);
+            border-radius: 18px;
+            padding: 0.95rem 1rem;
+            min-height: 176px;
+            margin-bottom: 0.7rem;
+        }
+
+        .swap-card h4 {
+            margin: 0 0 0.42rem;
+            font-size: 1.05rem;
+            color: var(--pet-ink);
+        }
+
+        .swap-card p {
+            margin: 0;
+            line-height: 1.58;
+            font-size: 0.94rem;
+        }
+
+        .swap-label {
+            font-size: 0.72rem;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            color: rgba(20, 54, 59, 0.5);
+            margin-bottom: 0.45rem;
+        }
+
         .section-kicker {
             font-size: 0.74rem;
             text-transform: uppercase;
