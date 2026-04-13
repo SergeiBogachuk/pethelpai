@@ -8,6 +8,7 @@ from pathlib import Path
 import pandas as pd
 import streamlit as st
 
+from emailer import email_configured
 from engine import (
     DOCUMENT_TYPE_LABELS,
     DOCUMENT_TYPES,
@@ -61,6 +62,7 @@ from storage import (
     create_pet,
     create_support_ticket,
     create_user,
+    dispatch_due_email_notifications,
     expense_summary,
     free_limits,
     get_pet,
@@ -267,6 +269,12 @@ TEXT = {
         "subscriptions": "Subscriptions",
         "analytics": "Analytics",
         "support": "Support",
+        "email_channel": "Email reminder delivery",
+        "email_ready": "SMTP is configured. Due reminders can be sent by email.",
+        "email_missing": "SMTP is not configured yet. Reminders still work inside the app, but email delivery is off.",
+        "run_sweep": "Run reminder sweep now",
+        "sweep_result": "Reminder sweep: {sent} sent, {failed} failed.",
+        "phone_note": "Right now the external reminder channel is email. That already reaches the phone inbox. True push notifications come in the mobile app step.",
         "paywall_title": "Unlock Premium",
         "paywall_copy": "Premium opens multiple pets, unlimited reminders, document storage, full history, analytics, and family-ready workflows.",
         "second_pet_lock": "Free allows 1 pet. Premium unlocks multi-pet care.",
@@ -430,6 +438,12 @@ TEXT = {
         "subscriptions": "Подписки",
         "analytics": "Аналитика",
         "support": "Поддержка",
+        "email_channel": "Доставка email-напоминаний",
+        "email_ready": "SMTP уже настроен. Просроченные напоминания можно отправлять по email.",
+        "email_missing": "SMTP пока не настроен. Напоминания работают внутри приложения, но email-доставка выключена.",
+        "run_sweep": "Запустить отправку напоминаний",
+        "sweep_result": "Отправка напоминаний: отправлено {sent}, ошибок {failed}.",
+        "phone_note": "Сейчас внешний канал — это email. Он уже приходит на телефон в почту. Настоящие push-уведомления подключим на шаге мобильного приложения.",
         "paywall_title": "Открыть Premium",
         "paywall_copy": "Premium открывает несколько питомцев, безлимитные напоминания, хранение документов, полную историю, аналитику и семейный формат использования.",
         "second_pet_lock": "На Free доступен 1 питомец. Premium открывает несколько питомцев.",
@@ -551,6 +565,8 @@ def ensure_state() -> None:
         st.session_state.nav = "dashboard"
     if "selected_pet_id" not in st.session_state:
         st.session_state.selected_pet_id = None
+    if "last_email_dispatch_check" not in st.session_state:
+        st.session_state.last_email_dispatch_check = None
 
 
 def go_to(page: str) -> None:
@@ -1322,6 +1338,16 @@ def render_subscription_page(user: dict[str, object], subscription: dict[str, ob
 
 def render_settings_page(user: dict[str, object], language: str) -> None:
     st.title(tr("settings_title", language))
+    st.markdown(f"### {tr('email_channel', language)}")
+    st.caption(tr("phone_note", language))
+    if email_configured():
+        st.success(tr("email_ready", language))
+        if st.button(tr("run_sweep", language), use_container_width=False, key="settings_sweep"):
+            result = dispatch_due_email_notifications(int(user["id"]))
+            st.success(tr("sweep_result", language).format(sent=result["sent"], failed=result["failed"]))
+    else:
+        st.info(tr("email_missing", language))
+
     with st.form("settings_form"):
         name = st.text_input(tr("name", language), value=str(user["name"]))
         timezone = st.selectbox(tr("timezone", language), TIMEZONE_OPTIONS, index=TIMEZONE_OPTIONS.index(str(user["timezone"])) if str(user["timezone"]) in TIMEZONE_OPTIONS else 0)
@@ -1363,6 +1389,13 @@ def render_admin_page(language: str) -> None:
     c3.metric(tr("subscriptions", language), str(totals["subscriptions"]))
     c4.metric("DAU / WAU / MAU", f"{totals['dau']} / {totals['wau']} / {totals['mau']}")
 
+    if email_configured():
+        if st.button(tr("run_sweep", language), use_container_width=False, key="admin_sweep"):
+            result = dispatch_due_email_notifications()
+            st.success(tr("sweep_result", language).format(sent=result["sent"], failed=result["failed"]))
+    else:
+        st.info(tr("email_missing", language))
+
     st.markdown(f"### {tr('analytics', language)}")
     if summary["events"]:
         st.dataframe(pd.DataFrame(summary["events"]), use_container_width=True)
@@ -1378,6 +1411,17 @@ def render_admin_page(language: str) -> None:
 
 def now_iso_local() -> str:
     return datetime.utcnow().replace(microsecond=0).isoformat()
+
+
+def maybe_dispatch_email_notifications() -> None:
+    if not email_configured():
+        return
+    now = datetime.utcnow()
+    last = st.session_state.get("last_email_dispatch_check")
+    if isinstance(last, datetime) and (now - last).total_seconds() < 300:
+        return
+    dispatch_due_email_notifications()
+    st.session_state.last_email_dispatch_check = now
 
 
 def main() -> None:
@@ -1400,6 +1444,7 @@ def main() -> None:
         st.session_state.user_id = None
         st.rerun()
         return
+    maybe_dispatch_email_notifications()
     subscription = get_subscription(int(user["id"]))
     pets = list_pets(int(user["id"]))
 

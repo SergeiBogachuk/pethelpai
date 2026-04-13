@@ -24,6 +24,30 @@ python3 -m streamlit run pethelpai/app.py
 
 The app creates its local SQLite database automatically under `data/`.
 
+## Email reminders
+
+The MVP now supports real email reminder delivery over SMTP.
+
+Set these environment variables in Render:
+
+```bash
+SMTP_HOST=your-smtp-host
+SMTP_PORT=587
+SMTP_USERNAME=your-smtp-login
+SMTP_PASSWORD=your-smtp-password
+SMTP_FROM_EMAIL=hello@pethelpai.com
+SMTP_USE_TLS=true
+```
+
+How it works right now:
+
+- care events and medication reminders create in-app notifications
+- if email reminders are enabled in user settings, the app also queues email reminders
+- when the app is opened, it runs a reminder sweep and sends any due pending email reminders
+- admins can also run a manual reminder sweep from the admin page
+
+This gives you a real external reminder channel before mobile push notifications are added.
+
 ## Logo placement
 
 If you want the app to show your brand logo automatically, put one of these files into:
@@ -65,6 +89,7 @@ This workspace contains multiple unrelated projects, so the cleanest production 
 ## Current MVP notes
 
 - Notifications are implemented as in-app reminders generated from event and medication schedules.
+- Email reminders are supported through SMTP env vars.
 - Subscription and payment logic is modeled inside the app for MVP testing.
 - The next production step would be moving auth, billing, notifications, and file storage to dedicated services.
 

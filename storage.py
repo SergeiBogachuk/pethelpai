@@ -10,6 +10,7 @@ from pathlib import Path
 from typing import Any
 from uuid import uuid4
 
+from emailer import email_configured, send_email_message
 
 BASE_DIR = Path(__file__).parent
 DATA_DIR = BASE_DIR / "data"
@@ -1004,6 +1005,28 @@ def list_support_tickets() -> list[dict[str, Any]]:
     return [dict(row) for row in rows]
 
 
+def _notification_send_time(code: str, scheduled_at: datetime) -> datetime:
+    if code == "3d":
+        return scheduled_at - timedelta(days=3)
+    if code == "1d":
+        return scheduled_at - timedelta(days=1)
+    if code == "12h":
+        return scheduled_at - timedelta(hours=12)
+    return scheduled_at
+
+
+def _build_event_notification_message(event: dict[str, Any], pet_name: str) -> str:
+    scheduled_at = parse_iso(event.get("scheduled_at"))
+    when_text = scheduled_at.strftime("%b %d, %Y %H:%M") if scheduled_at else "soon"
+    return f"Reminder: {event['title']} for {pet_name} is scheduled for {when_text}."
+
+
+def _build_medication_notification_message(med: dict[str, Any], pet_name: str) -> str:
+    due_at = parse_iso(med.get("next_due_at"))
+    when_text = due_at.strftime("%b %d, %Y %H:%M") if due_at else "soon"
+    return f"Medication reminder: {med['medicine_name']} for {pet_name} is due around {when_text}."
+
+
 def sync_due_notifications(user_id: int) -> None:
     user = get_user(user_id)
     if not user:
@@ -1011,6 +1034,16 @@ def sync_due_notifications(user_id: int) -> None:
     now = datetime.utcnow().replace(microsecond=0)
 
     with connect() as conn:
+        pets = {
+            row["id"]: row["name"]
+            for row in conn.execute("SELECT id, name FROM pets WHERE user_id = ?", (user_id,)).fetchall()
+        }
+        channels: list[str] = []
+        if bool(user.get("notification_in_app")):
+            channels.append("in_app")
+        if bool(user.get("notification_email")):
+            channels.append("email")
+
         events = conn.execute(
             "SELECT * FROM care_events WHERE user_id = ? AND status = 'planned'",
             (user_id,),
@@ -1023,33 +1056,26 @@ def sync_due_notifications(user_id: int) -> None:
                 continue
             reminder_codes = json.loads(event.get("reminder_settings") or "[]")
             for code in reminder_codes:
-                delta = timedelta(0)
-                if code == "3d":
-                    delta = timedelta(days=3)
-                elif code == "1d":
-                    delta = timedelta(days=1)
-                elif code == "12h":
-                    delta = timedelta(hours=12)
-                elif code == "day_of":
-                    delta = timedelta(0)
-                send_at = scheduled_at - delta
+                send_at = _notification_send_time(code, scheduled_at)
                 if send_at <= now:
-                    exists = conn.execute(
-                        """
-                        SELECT id FROM notifications
-                        WHERE user_id = ? AND event_id = ? AND send_at = ? AND channel = 'in_app'
-                        """,
-                        (user_id, event["id"], send_at.isoformat()),
-                    ).fetchone()
-                    if exists is None:
-                        message = f"{event['title']} is coming up for one of your pets."
-                        conn.execute(
+                    pet_name = pets.get(event["pet_id"], "your pet")
+                    message = _build_event_notification_message(event, pet_name)
+                    for channel in channels:
+                        exists = conn.execute(
                             """
-                            INSERT INTO notifications (user_id, pet_id, event_id, channel, send_at, status, message, created_at)
-                            VALUES (?, ?, ?, 'in_app', ?, 'pending', ?, ?)
+                            SELECT id FROM notifications
+                            WHERE user_id = ? AND event_id = ? AND send_at = ? AND channel = ?
                             """,
-                            (user_id, event["pet_id"], event["id"], send_at.isoformat(), message, now_iso()),
-                        )
+                            (user_id, event["id"], send_at.isoformat(), channel),
+                        ).fetchone()
+                        if exists is None:
+                            conn.execute(
+                                """
+                                INSERT INTO notifications (user_id, pet_id, event_id, channel, send_at, status, message, created_at)
+                                VALUES (?, ?, ?, ?, ?, 'pending', ?, ?)
+                                """,
+                                (user_id, event["pet_id"], event["id"], channel, send_at.isoformat(), message, now_iso()),
+                            )
 
         meds = conn.execute(
             "SELECT * FROM medication_courses WHERE user_id = ? AND status = 'active' AND next_due_at IS NOT NULL",
@@ -1059,27 +1085,31 @@ def sync_due_notifications(user_id: int) -> None:
             med = dict(med_row)
             next_due = parse_iso(med["next_due_at"])
             if next_due and next_due <= now + timedelta(hours=12):
-                exists = conn.execute(
-                    """
-                    SELECT id FROM notifications
-                    WHERE user_id = ? AND event_id IS NULL AND message = ?
-                    """,
-                    (user_id, f"Medication reminder::{med['id']}::{med['next_due_at']}"),
-                ).fetchone()
-                if exists is None:
-                    conn.execute(
+                pet_name = pets.get(med["pet_id"], "your pet")
+                message = _build_medication_notification_message(med, pet_name)
+                for channel in channels:
+                    exists = conn.execute(
                         """
-                        INSERT INTO notifications (user_id, pet_id, event_id, channel, send_at, status, message, created_at)
-                        VALUES (?, ?, NULL, 'in_app', ?, 'pending', ?, ?)
+                        SELECT id FROM notifications
+                        WHERE user_id = ? AND event_id IS NULL AND pet_id = ? AND send_at = ? AND channel = ? AND message = ?
                         """,
-                        (
-                            user_id,
-                            med["pet_id"],
-                            med["next_due_at"],
-                            f"Medication reminder::{med['id']}::{med['next_due_at']}",
-                            now_iso(),
-                        ),
-                    )
+                        (user_id, med["pet_id"], med["next_due_at"], channel, message),
+                    ).fetchone()
+                    if exists is None:
+                        conn.execute(
+                            """
+                            INSERT INTO notifications (user_id, pet_id, event_id, channel, send_at, status, message, created_at)
+                            VALUES (?, ?, NULL, ?, ?, 'pending', ?, ?)
+                            """,
+                            (
+                                user_id,
+                                med["pet_id"],
+                                channel,
+                                med["next_due_at"],
+                                message,
+                                now_iso(),
+                            ),
+                        )
 
 
 def list_notifications(user_id: int, only_pending: bool = True) -> list[dict[str, Any]]:
@@ -1089,7 +1119,7 @@ def list_notifications(user_id: int, only_pending: bool = True) -> list[dict[str
         FROM notifications
         LEFT JOIN pets ON pets.id = notifications.pet_id
         LEFT JOIN care_events ON care_events.id = notifications.event_id
-        WHERE notifications.user_id = ?
+        WHERE notifications.user_id = ? AND notifications.channel = 'in_app'
     """
     params: list[Any] = [user_id]
     if only_pending:
@@ -1106,6 +1136,71 @@ def mark_notification_read(user_id: int, notification_id: int) -> None:
             "UPDATE notifications SET status = 'read' WHERE id = ? AND user_id = ?",
             (notification_id, user_id),
         )
+
+
+def dispatch_due_email_notifications(user_id: int | None = None) -> dict[str, int]:
+    query = """
+        SELECT notifications.*, users.email, users.name, pets.name AS pet_name, care_events.title AS event_title
+        FROM notifications
+        JOIN users ON users.id = notifications.user_id
+        LEFT JOIN pets ON pets.id = notifications.pet_id
+        LEFT JOIN care_events ON care_events.id = notifications.event_id
+        WHERE notifications.channel = 'email'
+          AND notifications.status = 'pending'
+          AND notifications.send_at <= ?
+          AND users.notification_email = 1
+    """
+    now = datetime.utcnow().replace(microsecond=0)
+    params: list[Any] = [now.isoformat()]
+    if user_id is not None:
+        query += " AND notifications.user_id = ?"
+        params.append(user_id)
+    query += " ORDER BY notifications.send_at ASC"
+
+    if not email_configured():
+        with connect() as conn:
+            pending = conn.execute(f"SELECT COUNT(*) AS count FROM ({query})", params).fetchone()
+        return {"sent": 0, "failed": 0, "skipped": int(pending["count"])}
+
+    sent = 0
+    failed = 0
+
+    with connect() as conn:
+        rows = conn.execute(query, params).fetchall()
+        for row in rows:
+            item = dict(row)
+            pet_name = item.get("pet_name") or "your pet"
+            title = item.get("event_title") or item.get("message") or "Pet reminder"
+            subject = f"Pet Help AI reminder: {title}"
+            text_body = (
+                f"Hello {item.get('name') or ''},\n\n"
+                f"{item['message']}\n\n"
+                f"Pet: {pet_name}\n"
+                f"Scheduled: {item['send_at']}\n\n"
+                "Open Pet Help AI to view the full care timeline."
+            ).strip()
+            html_body = (
+                f"<p>Hello {item.get('name') or ''},</p>"
+                f"<p>{item['message']}</p>"
+                f"<p><strong>Pet:</strong> {pet_name}<br/>"
+                f"<strong>Scheduled:</strong> {item['send_at']}</p>"
+                "<p>Open Pet Help AI to view the full care timeline.</p>"
+            )
+            try:
+                send_email_message(item["email"], subject, text_body, html_body)
+                conn.execute(
+                    "UPDATE notifications SET status = 'sent' WHERE id = ?",
+                    (item["id"],),
+                )
+                sent += 1
+            except Exception:
+                conn.execute(
+                    "UPDATE notifications SET status = 'failed' WHERE id = ?",
+                    (item["id"],),
+                )
+                failed += 1
+
+    return {"sent": sent, "failed": failed, "skipped": 0}
 
 
 def analytics_summary() -> dict[str, Any]:
