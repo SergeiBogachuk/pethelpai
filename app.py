@@ -77,12 +77,12 @@ UI_TEXT = {
         "verdict_caution_expl": "`Caution` means ingredient, amount, or pet-specific risk needs a closer look.",
         "verdict_avoid_expl": "`Avoid` means pause and escalate quickly, especially if the food was already eaten.",
         "vet_note": "For urgent or worsening symptoms, contact a veterinarian.",
-        "food_tab": "Food Check",
+        "food_tab": "Food Coach",
         "emergency_tab": "Emergency Mode",
         "care_tab": "Care Guide",
         "history_tab": "History",
-        "food_title": "Food Check",
-        "food_caption": "Describe the food first. If it was already eaten, switch to Emergency Mode.",
+        "food_title": "Food Coach",
+        "food_caption": "Use this for everyday feeding questions: is it a good add-on, an occasional treat, or something to skip?",
         "add_photo": "Add photo (optional)",
         "image_input": "Image input",
         "skip_image": "Skip image",
@@ -102,8 +102,8 @@ UI_TEXT = {
         "photo_only_warning": "For photo-only checks, add `OPENAI_API_KEY` or type a short food description below the image.",
         "reading_photo": "Reading the photo...",
         "result": "Result",
-        "empty_food_title": "Type the food first, then get the verdict.",
-        "empty_food_copy": "You will see one clear result and the immediate next steps below.",
+        "empty_food_title": "Type the food first, then get a diet-style read.",
+        "empty_food_copy": "You will see whether it fits well, only works as an occasional treat, or is better skipped.",
         "ask_follow_up": "Ask a follow-up",
         "question": "Question",
         "follow_up_placeholder": "What symptoms should I watch for?",
@@ -140,7 +140,7 @@ UI_TEXT = {
         "chewy": "Chewy",
         "amazon": "Amazon",
         "photo_read_title": "What I see in the photo",
-        "history_food": "Food Check",
+        "history_food": "Food Coach",
         "history_emergency": "Emergency Mode",
     },
     "ru": {
@@ -171,12 +171,12 @@ UI_TEXT = {
         "verdict_caution_expl": "`Осторожно` значит, что состав, количество или профиль питомца требуют более внимательной проверки.",
         "verdict_avoid_expl": "`Нельзя` значит, что лучше остановиться и быстрее усилить осторожность, особенно если еда уже съедена.",
         "vet_note": "Если симптомы срочные или усиливаются, свяжитесь с ветеринаром.",
-        "food_tab": "Проверка еды",
+        "food_tab": "Пищевой помощник",
         "emergency_tab": "Экстренный режим",
         "care_tab": "Гид по уходу",
         "history_tab": "История",
-        "food_title": "Проверка еды",
-        "food_caption": "Сначала опиши еду. Если питомец уже съел это, перейди в экстренный режим.",
+        "food_title": "Пищевой помощник",
+        "food_caption": "Используй это для обычных вопросов по рациону: это хороший вариант, редкое угощение или лучше пропустить?",
         "add_photo": "Добавить фото (необязательно)",
         "image_input": "Источник изображения",
         "skip_image": "Без фото",
@@ -196,8 +196,8 @@ UI_TEXT = {
         "photo_only_warning": "Для проверки только по фото добавь `OPENAI_API_KEY` или напиши короткое описание еды под фото.",
         "reading_photo": "Читаю фото...",
         "result": "Результат",
-        "empty_food_title": "Сначала введи еду, потом получишь вердикт.",
-        "empty_food_copy": "Ниже появится один понятный вывод и следующие шаги.",
+        "empty_food_title": "Сначала введи еду, потом получишь диетологический разбор.",
+        "empty_food_copy": "Ниже будет видно: это хороший вариант, редкое угощение или лучше не включать в рацион.",
         "ask_follow_up": "Задать уточняющий вопрос",
         "question": "Вопрос",
         "follow_up_placeholder": "За какими симптомами мне следить?",
@@ -234,7 +234,7 @@ UI_TEXT = {
         "chewy": "Chewy",
         "amazon": "Amazon",
         "photo_read_title": "Что я вижу на фото",
-        "history_food": "Проверка еды",
+        "history_food": "Пищевой помощник",
         "history_emergency": "Экстренный режим",
     },
 }
@@ -510,6 +510,10 @@ def render_analysis(analysis: dict[str, object], language: str) -> None:
     verdict = str(analysis["verdict"]).lower()
     badge_color = str(analysis["badge_color"])
     matched_labels = analysis.get("matched_labels") or []
+    actions_title = str(analysis.get("actions_title") or t(language, "what_to_do"))
+    reasons_title = str(analysis.get("reasons_title") or t(language, "why_verdict"))
+    watch_title = str(analysis.get("watch_title") or t(language, "symptoms_to_watch"))
+    presentation_mode = str(analysis.get("presentation_mode") or "acute")
 
     st.markdown(
         f"""
@@ -532,14 +536,14 @@ def render_analysis(analysis: dict[str, object], language: str) -> None:
     if analysis.get("image_summary"):
         render_detail_card(t(language, "photo_read_title"), summary_lines(str(analysis["image_summary"])))
 
-    render_detail_card(t(language, "what_to_do"), list(analysis["actions"])[:3])
+    render_detail_card(actions_title, list(analysis["actions"])[:3])
     render_detail_card(
-        t(language, "why_verdict"),
+        reasons_title,
         list(analysis["reasons"])[:3]
         or (["Нужна более точная проверка состава."] if language == "ru" else ["The item needs a closer ingredient check."]),
     )
 
-    with st.expander(t(language, "symptoms_to_watch"), expanded=str(analysis["verdict"]) == "Avoid"):
+    with st.expander(watch_title, expanded=str(analysis["verdict"]) == "Avoid" and presentation_mode == "acute"):
         for symptom in analysis["watch_for"]:
             st.write(f"- {symptom}")
 

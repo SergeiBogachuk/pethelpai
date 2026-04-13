@@ -49,6 +49,10 @@ RUSSIAN_TERM_MAP = {
     "картошка фри": "fries",
     "мороженое": "ice cream",
     "сыр": "cheese",
+    "яйцо": "egg",
+    "яйца": "eggs",
+    "вареное яйцо": "boiled egg",
+    "омлет": "scrambled egg",
     "йогурт": "yogurt",
     "печенье": "cookie",
     "торт": "cake",
@@ -97,6 +101,7 @@ LABEL_TRANSLATIONS_RU = {
     "Peanut butter": "Арахисовая паста",
     "Plain cooked chicken": "Простая приготовленная курица",
     "Plain cooked turkey": "Простая приготовленная индейка",
+    "Plain cooked egg": "Простое приготовленное яйцо",
     "Plain pumpkin": "Простая тыква",
     "Plain white rice": "Простой белый рис",
     "Carrots or cucumber": "Морковь или огурец",
@@ -127,6 +132,7 @@ REASON_TRANSLATIONS_RU = {
     "Peanut butter may be okay, but the ingredient label must be checked for xylitol and excess sugar.": "Арахисовая паста иногда допустима, но нужно проверить состав на ксилит и избыток сахара.",
     "Plain cooked chicken is often tolerated well in small portions.": "Простая приготовленная курица часто переносится хорошо в небольших порциях.",
     "Lean unseasoned turkey is usually a safer protein choice.": "Нежирная индейка без приправ обычно безопаснее как белковый вариант.",
+    "Plain cooked egg can work as a small protein add-on when it is fully cooked and unseasoned.": "Простое полностью приготовленное яйцо без приправ может подойти как небольшая белковая добавка.",
     "Plain pumpkin is commonly used in small amounts for gentle digestion support.": "Простая тыква часто используется в небольших количествах для мягкой поддержки пищеварения.",
     "Plain rice is bland and usually low risk in modest portions.": "Простой рис мягкий для желудка и обычно имеет низкий риск в умеренных порциях.",
     "These are low-fat snack options when served plain and bite-sized.": "Это нежирные варианты перекуса, если давать их без добавок и маленькими кусочками.",
@@ -407,6 +413,12 @@ SAFE_RULES = [
         "keywords": ["plain turkey", "unseasoned turkey", "cooked turkey breast"],
         "species": ["dog", "cat"],
         "why": "Lean unseasoned turkey is usually a safer protein choice.",
+    },
+    {
+        "label": "Plain cooked egg",
+        "keywords": ["plain egg", "boiled egg", "cooked egg", "scrambled egg", "hard boiled egg"],
+        "species": ["dog", "cat"],
+        "why": "Plain cooked egg can work as a small protein add-on when it is fully cooked and unseasoned.",
     },
     {
         "label": "Plain pumpkin",
@@ -765,6 +777,178 @@ def _make_summary(
             f"was only a {amount_text} and the food was plain."
         )
     return f"This looks like a relatively safe option for {pet_name} when served plain and in a small portion."
+
+
+def _is_acute_case(already_ate: bool, severe_hits: list[str], moderate_hits: list[str]) -> bool:
+    return already_ate or bool(severe_hits or moderate_hits)
+
+
+def _coach_portion_hint(weight_lbs: float, caution_level: str, language: str = "en") -> str:
+    if caution_level == "avoid":
+        return (
+            "Я бы не включал это в рацион и не строил вокруг него кормление."
+            if _language_code(language) == "ru"
+            else "I would not build this into the feeding routine at all."
+        )
+
+    if weight_lbs and weight_lbs < 15:
+        safe_portion = "1-2 tiny bites"
+        caution_portion = "one tiny taste at most"
+        safe_portion_ru = "1-2 совсем маленьких кусочка"
+        caution_portion_ru = "максимум один маленький вкус"
+    elif weight_lbs and weight_lbs < 45:
+        safe_portion = "2-4 bite-sized pieces"
+        caution_portion = "1-2 bite-sized pieces"
+        safe_portion_ru = "2-4 кусочка маленького размера"
+        caution_portion_ru = "1-2 маленьких кусочка"
+    else:
+        safe_portion = "a few bite-sized pieces"
+        caution_portion = "1-3 bite-sized pieces"
+        safe_portion_ru = "несколько маленьких кусочков"
+        caution_portion_ru = "1-3 небольших кусочка"
+
+    if _language_code(language) == "ru":
+        return (
+            f"Если использовать это как добавку, держи порцию на уровне {safe_portion_ru}."
+            if caution_level == "safe"
+            else f"Если давать это вообще, то не больше чем {caution_portion_ru}."
+        )
+    return (
+        f"If you use it as an add-on, keep it around {safe_portion}."
+        if caution_level == "safe"
+        else f"If you offer it at all, cap it around {caution_portion}."
+    )
+
+
+def _coach_copy(
+    verdict: str,
+    pet_name: str,
+    match_labels: list[str],
+    toxic_matches: list[dict[str, Any]],
+    caution_matches: list[dict[str, Any]],
+    weight_lbs: float,
+    language: str = "en",
+) -> dict[str, Any]:
+    match_text = _join_labels([_localize_label(label, language) for label in match_labels], language)
+    caution_categories = {match.get("category", "") for match in caution_matches}
+
+    if verdict == "Safe":
+        if _language_code(language) == "ru":
+            summary = (
+                f"Как диетологический разбор, это выглядит как неплохая небольшая добавка для {pet_name}, если продукт простой и без приправ."
+            )
+            reasons_title = "Почему это ок"
+            actions_title = "Как я бы это давал"
+            watch_title = "Если не зайдет"
+            actions = [
+                "Оставляй это как маленькое дополнение, а не как основу рациона.",
+                _coach_portion_hint(weight_lbs, "safe", language),
+                "Лучше всего давать это в простом виде: без соли, масла, чеснока и соусов.",
+            ]
+            display = "Хороший вариант"
+            badge = "Можно в рацион"
+        else:
+            summary = f"As a diet read, this looks like a solid small add-on for {pet_name} when it is plain and unseasoned."
+            reasons_title = "Why It Works"
+            actions_title = "How I'd Use It"
+            watch_title = "If It Doesn't Sit Well"
+            actions = [
+                "Keep this as a small add-on, not the foundation of the diet.",
+                _coach_portion_hint(weight_lbs, "safe", language),
+                "Best when it is plain: no salt, butter, garlic, or sauces.",
+            ]
+            display = "Good Add-On"
+            badge = "Good Fit"
+        return {
+            "summary": summary,
+            "display": display,
+            "badge": badge,
+            "actions_title": actions_title,
+            "reasons_title": reasons_title,
+            "watch_title": watch_title,
+            "actions": actions,
+        }
+
+    if verdict == "Caution":
+        dairy_or_rich = bool({"dairy", "fatty", "sweet", "salty", "spicy"} & caution_categories)
+        if _language_code(language) == "ru":
+            summary = (
+                f"Как еда на каждый день, это слабый вариант для {pet_name}. Я бы оставил это только как редкое угощение, а не как регулярную часть рациона."
+            )
+            if dairy_or_rich:
+                summary = (
+                    f"Для повседневного рациона {pet_name} это скорее редкое угощение, чем хороший регулярный выбор. "
+                    f"Такое лучше давать изредка и совсем понемногу."
+                )
+            reasons_title = "Почему я осторожен"
+            actions_title = "Как я бы это использовал"
+            watch_title = "Если желудок отреагирует"
+            actions = [
+                "Считай это редким угощением, а не нормальной частью рациона.",
+                _coach_portion_hint(weight_lbs, "caution", language),
+                "Если питомец чувствительный, маленький или с хроническими состояниями, лучше выбрать более простой вариант.",
+            ]
+            display = "Иногда можно"
+            badge = "Редкое угощение"
+        else:
+            summary = f"As an everyday food choice, this is weak for {pet_name}. I would frame it as an occasional treat, not a routine part of the bowl."
+            if dairy_or_rich:
+                summary = f"For everyday feeding, this is more of an occasional treat than a smart repeat choice for {pet_name}. Keep it infrequent and very small."
+            reasons_title = "Why I'm Cautious"
+            actions_title = "How I'd Use It"
+            watch_title = "If The Stomach Pushes Back"
+            actions = [
+                "Treat this as an occasional extra, not a normal part of the meal plan.",
+                _coach_portion_hint(weight_lbs, "caution", language),
+                "If your pet is sensitive, small, or has chronic conditions, choose a simpler option instead.",
+            ]
+            display = "Occasional Treat"
+            badge = "Treat Only"
+        return {
+            "summary": summary,
+            "display": display,
+            "badge": badge,
+            "actions_title": actions_title,
+            "reasons_title": reasons_title,
+            "watch_title": watch_title,
+            "actions": actions,
+        }
+
+    if _language_code(language) == "ru":
+        summary = (
+            f"Как вариант питания я бы это пропустил. Для {pet_name} лучше взять более простой и предсказуемый продукт, чем строить кормление вокруг {match_text or 'этого продукта'}."
+        )
+        actions_title = "Что лучше сделать вместо этого"
+        reasons_title = "Почему я бы пропустил"
+        watch_title = "Если случайно попробует"
+        actions = [
+            "Не делай это частью рациона.",
+            "Возьми более простой и безопасный для питомца вариант без спорных ингредиентов.",
+            "Если питомец случайно это съест, переходи в экстренный режим.",
+        ]
+        display = "Лучше пропустить"
+        badge = "Лучше не включать"
+    else:
+        summary = f"As a feeding choice, I would skip this. For {pet_name}, a simpler and more predictable option makes more sense than building around {match_text or 'this food'}."
+        actions_title = "What I'd Do Instead"
+        reasons_title = "Why I'd Skip It"
+        watch_title = "If It Gets Eaten By Accident"
+        actions = [
+            "Do not make this part of the routine feeding plan.",
+            "Choose a simpler pet-safe option without questionable add-ins.",
+            "If your pet accidentally eats it later, switch to Emergency Mode.",
+        ]
+        display = "Skip This Food"
+        badge = "Not A Fit"
+    return {
+        "summary": summary,
+        "display": display,
+        "badge": badge,
+        "actions_title": actions_title,
+        "reasons_title": reasons_title,
+        "watch_title": watch_title,
+        "actions": actions,
+    }
 
 
 def _safe_alternatives(species: str, language: str = "en") -> list[str]:
@@ -1260,29 +1444,47 @@ def analyze_food(
     if allergy_reasons:
         score = max(score, 1)
 
+    acute_case = _is_acute_case(already_ate, severe_hits, moderate_hits)
+
     if severe_hits:
         score = 2
     elif moderate_hits and (toxic_matches or already_ate):
         score = max(score, 1)
 
     verdict = "Safe" if score == 0 else "Caution" if score == 1 else "Avoid"
-    verdict_tone = {
-        "Safe": {
-            "label": "Низкий риск" if _language_code(language) == "ru" else "Low risk",
-            "display": "Можно" if _language_code(language) == "ru" else "Safe",
-            "color": "#177245",
-        },
-        "Caution": {
-            "label": "Осторожно" if _language_code(language) == "ru" else "Use caution",
-            "display": "Осторожно" if _language_code(language) == "ru" else "Caution",
-            "color": "#9a6300",
-        },
-        "Avoid": {
-            "label": "Срочная проверка" if _language_code(language) == "ru" else "Urgent review",
-            "display": "Нельзя" if _language_code(language) == "ru" else "Avoid",
-            "color": "#a42d2d",
-        },
-    }[verdict]
+    if acute_case:
+        verdict_tone = {
+            "Safe": {
+                "label": "Низкий риск" if _language_code(language) == "ru" else "Low risk",
+                "display": "Можно" if _language_code(language) == "ru" else "Safe",
+                "color": "#177245",
+            },
+            "Caution": {
+                "label": "Осторожно" if _language_code(language) == "ru" else "Use caution",
+                "display": "Осторожно" if _language_code(language) == "ru" else "Caution",
+                "color": "#9a6300",
+            },
+            "Avoid": {
+                "label": "Срочная проверка" if _language_code(language) == "ru" else "Urgent review",
+                "display": "Нельзя" if _language_code(language) == "ru" else "Avoid",
+                "color": "#a42d2d",
+            },
+        }[verdict]
+    else:
+        coach_preview = _coach_copy(
+            verdict=verdict,
+            pet_name=pet_name,
+            match_labels=[match["label"] for match in toxic_matches + caution_matches + safe_matches],
+            toxic_matches=toxic_matches,
+            caution_matches=caution_matches,
+            weight_lbs=weight_lbs,
+            language=language,
+        )
+        verdict_tone = {
+            "label": str(coach_preview["badge"]),
+            "display": str(coach_preview["display"]),
+            "color": "#177245" if verdict == "Safe" else "#9a6300" if verdict == "Caution" else "#a42d2d",
+        }
 
     match_labels = [match["label"] for match in toxic_matches + caution_matches + safe_matches]
     reasons = [
@@ -1317,7 +1519,7 @@ def analyze_food(
         reasons.append(_localize_reason("Current symptoms raise the level of concern above a routine treat question.", language))
 
     actions: list[str] = []
-    if verdict == "Avoid":
+    if verdict == "Avoid" and acute_case:
         actions.extend(
             [
                 "Уберите еду и держите рядом упаковку или состав."
@@ -1337,7 +1539,7 @@ def analyze_food(
                 if _language_code(language) == "ru"
                 else "If breathing is hard, your pet collapses, or seizures occur, go to an emergency clinic now."
             )
-    elif verdict == "Caution":
+    elif verdict == "Caution" and acute_case:
         actions.extend(
             [
                 "Поставьте на паузу и перепроверьте полный состав, прежде чем давать еще."
@@ -1351,7 +1553,7 @@ def analyze_food(
                 else "Reach out to your veterinarian sooner if your pet is small, senior, or has chronic conditions.",
             ]
         )
-    else:
+    elif acute_case:
         actions.extend(
             [
                 "Давайте только в простом виде и маленькой порцией."
@@ -1365,6 +1567,20 @@ def analyze_food(
                 else "Stop and reassess if vomiting, diarrhea, or unusual tiredness appears.",
             ]
         )
+
+    match_labels = [match["label"] for match in toxic_matches + caution_matches + safe_matches]
+    coach_copy = _coach_copy(
+        verdict=verdict,
+        pet_name=pet_name,
+        match_labels=match_labels,
+        toxic_matches=toxic_matches,
+        caution_matches=caution_matches,
+        weight_lbs=weight_lbs,
+        language=language,
+    )
+
+    if not acute_case:
+        actions = list(coach_copy["actions"])
 
     watch_for = [
         symptom
@@ -1383,15 +1599,19 @@ def analyze_food(
         "badge_label": verdict_tone["label"],
         "verdict_display": verdict_tone["display"],
         "badge_color": verdict_tone["color"],
-        "summary": _make_summary(
-            verdict=verdict,
-            pet_name=pet_name,
-            species=species,
-            amount_label=amount_label,
-            already_ate=already_ate,
-            match_labels=match_labels,
-            unknown_item=unknown_item,
-            language=language,
+        "summary": (
+            _make_summary(
+                verdict=verdict,
+                pet_name=pet_name,
+                species=species,
+                amount_label=amount_label,
+                already_ate=already_ate,
+                match_labels=match_labels,
+                unknown_item=unknown_item,
+                language=language,
+            )
+            if acute_case
+            else str(coach_copy["summary"])
         ),
         "reasons": _dedupe(reasons),
         "actions": _dedupe(actions),
@@ -1419,6 +1639,22 @@ def analyze_food(
         "pet_name": pet_name,
         "species": species,
         "language": _language_code(language),
+        "presentation_mode": "acute" if acute_case else "coach",
+        "actions_title": (
+            "Что делать сейчас" if _language_code(language) == "ru" else "What To Do Now"
+        )
+        if acute_case
+        else str(coach_copy["actions_title"]),
+        "reasons_title": (
+            "Почему такой вердикт" if _language_code(language) == "ru" else "Why This Verdict"
+        )
+        if acute_case
+        else str(coach_copy["reasons_title"]),
+        "watch_title": (
+            "За какими симптомами следить" if _language_code(language) == "ru" else "Symptoms to watch"
+        )
+        if acute_case
+        else str(coach_copy["watch_title"]),
     }
 
 
