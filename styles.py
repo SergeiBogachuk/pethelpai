@@ -11,20 +11,16 @@ def inject_styles() -> None:
             --pet-ink: #14363b;
             --pet-copy: #33565a;
             --pet-soft: #6a8487;
-            --pet-shell: #fcfaf6;
-            --pet-card: rgba(255, 255, 255, 0.9);
-            --pet-line: rgba(20, 54, 59, 0.12);
-            --pet-mint: #d5efe4;
-            --pet-coral: #ef9d7f;
-            --pet-gold: #ffd08a;
-            --pet-rose: #ffebe3;
+            --pet-shell: #f8f7f3;
+            --pet-card: #ffffff;
+            --pet-line: rgba(20, 54, 59, 0.1);
+            --pet-safe: #edf7f0;
+            --pet-caution: #faf3e6;
+            --pet-avoid: #faece8;
         }
 
         .stApp {
-            background:
-                radial-gradient(circle at top left, rgba(239, 157, 127, 0.17), transparent 24%),
-                radial-gradient(circle at top right, rgba(213, 239, 228, 0.55), transparent 22%),
-                linear-gradient(180deg, #fffefb 0%, #fcfaf6 42%, #faf6f0 100%);
+            background: var(--pet-shell);
             color: var(--pet-copy);
         }
 
@@ -39,8 +35,7 @@ def inject_styles() -> None:
         }
 
         [data-testid="stSidebar"] {
-            background:
-                linear-gradient(180deg, rgba(255,255,255,0.97) 0%, rgba(252,247,239,0.98) 100%);
+            background: #fbfaf7;
             border-right: 1px solid var(--pet-line);
         }
 
@@ -89,32 +84,31 @@ def inject_styles() -> None:
             font-weight: 700;
         }
 
-        .hero-shell {
-            position: relative;
-            overflow: hidden;
-            padding: 1.55rem 1.55rem 1.4rem;
-            border-radius: 26px;
-            background:
-                linear-gradient(145deg, rgba(18, 70, 75, 0.98) 0%, rgba(24, 92, 97, 0.94) 48%, rgba(239, 157, 127, 0.82) 100%);
-            box-shadow: 0 20px 60px rgba(31, 62, 67, 0.14);
-            margin-bottom: 0.95rem;
-            color: #fffef9;
+        .app-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 1rem;
+            padding: 1rem 1.1rem;
+            border-radius: 20px;
+            background: var(--pet-card);
+            border: 1px solid var(--pet-line);
+            margin-bottom: 1rem;
         }
 
         .brand-lockup {
             display: flex;
             align-items: center;
             gap: 0.85rem;
-            margin-bottom: 0.95rem;
         }
 
         .brand-mark,
         .brand-fallback {
-            width: 56px;
-            height: 56px;
-            border-radius: 16px;
-            background: rgba(255, 255, 255, 0.18);
-            border: 1px solid rgba(255, 255, 255, 0.18);
+            width: 52px;
+            height: 52px;
+            border-radius: 14px;
+            background: rgba(20, 54, 59, 0.06);
+            border: 1px solid rgba(20, 54, 59, 0.08);
             object-fit: cover;
             flex-shrink: 0;
         }
@@ -125,172 +119,61 @@ def inject_styles() -> None:
             justify-content: center;
             font-weight: 800;
             letter-spacing: 0.06em;
-            color: #fffef9;
+            color: var(--pet-ink);
         }
 
         .brand-name {
             font-family: Georgia, "Times New Roman", serif;
-            font-size: 1.2rem;
+            font-size: 1.18rem;
             font-weight: 700;
-            color: #fffef9;
+            color: var(--pet-ink);
         }
 
         .brand-domain {
             font-size: 0.83rem;
-            color: rgba(255, 250, 245, 0.82);
+            color: var(--pet-soft);
         }
 
-        .hero-shell:before,
-        .hero-shell:after {
-            content: "";
-            position: absolute;
-            border-radius: 999px;
-            filter: blur(6px);
-            opacity: 0.42;
+        .app-summary {
+            text-align: right;
+            max-width: 340px;
         }
 
-        .hero-shell:before {
-            width: 220px;
-            height: 220px;
-            background: rgba(255, 233, 210, 0.26);
-            top: -105px;
-            right: -35px;
-        }
-
-        .hero-shell:after {
-            width: 190px;
-            height: 190px;
-            background: rgba(189, 232, 215, 0.22);
-            bottom: -90px;
-            left: -40px;
-        }
-
-        .hero-eyebrow {
-            display: inline-flex;
-            align-items: center;
-            gap: 0.45rem;
-            padding: 0.36rem 0.72rem;
-            border-radius: 999px;
-            font-size: 0.76rem;
-            font-weight: 700;
-            letter-spacing: 0.04em;
+        .app-summary-label {
+            font-size: 0.72rem;
             text-transform: uppercase;
-            background: rgba(255, 255, 255, 0.18);
-            margin-bottom: 0.8rem;
+            letter-spacing: 0.08em;
+            color: var(--pet-soft);
+            margin-bottom: 0.2rem;
         }
 
-        .hero-title {
-            font-size: clamp(2rem, 3.4vw, 3.45rem);
-            line-height: 1.04;
-            margin: 0 0 0.6rem;
-            max-width: 620px;
+        .app-summary-name {
+            font-family: Georgia, "Times New Roman", serif;
+            color: var(--pet-ink);
+            font-size: 1.1rem;
+            margin-bottom: 0.2rem;
         }
 
-        .hero-copy {
-            max-width: 600px;
-            margin: 0;
-            font-size: 0.99rem;
-            line-height: 1.65;
-            color: rgba(255, 250, 245, 0.92);
+        .app-summary-copy {
+            font-size: 0.9rem;
+            line-height: 1.5;
+            color: var(--pet-soft);
         }
 
-        .hero-chip-row {
-            display: flex;
-            flex-wrap: wrap;
-            gap: 0.55rem;
-            margin-top: 0.95rem;
-        }
-
-        .hero-chip {
-            padding: 0.42rem 0.78rem;
-            border-radius: 999px;
-            font-size: 0.84rem;
-            background: rgba(255, 255, 255, 0.16);
-            border: 1px solid rgba(255, 255, 255, 0.14);
-        }
-
-        .status-card,
         .surface-card {
             background: var(--pet-card);
             border: 1px solid var(--pet-line);
-            border-radius: 22px;
-            padding: 1rem 1.05rem;
-            box-shadow: 0 14px 40px rgba(24, 56, 61, 0.06);
-        }
-
-        .status-card {
-            height: 100%;
-            padding: 1.1rem 1.1rem 1rem;
-        }
-
-        .status-label {
-            font-size: 0.76rem;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            color: rgba(20, 54, 59, 0.5);
-            margin-bottom: 0.4rem;
-        }
-
-        .status-name {
-            font-family: Georgia, "Times New Roman", serif;
-            font-size: 1.65rem;
-            color: var(--pet-ink);
-            margin: 0 0 0.35rem;
-        }
-
-        .status-copy {
-            margin: 0 0 0.85rem;
-            line-height: 1.6;
-            color: var(--pet-copy);
-        }
-
-        .status-row {
-            display: grid;
-            gap: 0.7rem;
-        }
-
-        .status-pill {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 0.75rem;
-            padding: 0.72rem 0.8rem;
-            border-radius: 16px;
-            background: rgba(250, 247, 242, 0.9);
-            border: 1px solid rgba(20, 54, 59, 0.08);
-            font-size: 0.92rem;
-        }
-
-        .status-pill strong {
-            color: var(--pet-ink);
-            font-weight: 700;
-        }
-
-        .focus-strip {
-            display: flex;
-            align-items: center;
-            justify-content: space-between;
-            gap: 1rem;
-            padding: 0.82rem 0.95rem;
-            margin: 0.15rem 0 1.2rem;
             border-radius: 18px;
-            background: rgba(255, 255, 255, 0.72);
-            border: 1px solid rgba(20, 54, 59, 0.09);
+            padding: 1rem 1.05rem;
+            box-shadow: none;
         }
 
-        .focus-copy {
-            font-size: 0.95rem;
-            line-height: 1.55;
-        }
-
-        .focus-badge {
-            white-space: nowrap;
-            padding: 0.45rem 0.74rem;
-            border-radius: 999px;
-            background: rgba(20, 54, 59, 0.06);
-            color: var(--pet-ink);
-            font-weight: 700;
-            font-size: 0.84rem;
+        .section-card {
+            background: var(--pet-card);
+            border: 1px solid var(--pet-line);
+            border-radius: 18px;
+            padding: 1rem 1.05rem;
+            margin-bottom: 1rem;
         }
 
         .surface-card ul {
@@ -304,25 +187,22 @@ def inject_styles() -> None:
         }
 
         .result-card {
-            padding: 1.1rem 1.15rem;
-            border-radius: 24px;
-            border: 1px solid transparent;
-            margin-bottom: 0.7rem;
+            padding: 1rem 1.05rem;
+            border-radius: 18px;
+            border: 1px solid var(--pet-line);
+            margin-bottom: 0.85rem;
         }
 
         .result-safe {
-            background: linear-gradient(180deg, rgba(226, 248, 237, 0.9), rgba(255,255,255,0.95));
-            border-color: rgba(23, 114, 69, 0.18);
+            background: var(--pet-safe);
         }
 
         .result-caution {
-            background: linear-gradient(180deg, rgba(255, 241, 217, 0.92), rgba(255,255,255,0.95));
-            border-color: rgba(154, 99, 0, 0.18);
+            background: var(--pet-caution);
         }
 
         .result-avoid {
-            background: linear-gradient(180deg, rgba(255, 230, 223, 0.95), rgba(255,255,255,0.97));
-            border-color: rgba(164, 45, 45, 0.18);
+            background: var(--pet-avoid);
         }
 
         .result-pill {
@@ -335,7 +215,7 @@ def inject_styles() -> None:
             font-weight: 700;
             letter-spacing: 0.04em;
             text-transform: uppercase;
-            background: rgba(255, 255, 255, 0.84);
+            background: rgba(255, 255, 255, 0.92);
             margin-bottom: 0.62rem;
         }
 
@@ -352,11 +232,11 @@ def inject_styles() -> None:
         }
 
         .detail-card {
-            background: rgba(255, 255, 255, 0.7);
+            background: #ffffff;
             border: 1px solid rgba(20, 54, 59, 0.08);
-            border-radius: 18px;
+            border-radius: 16px;
             padding: 0.95rem 1rem;
-            height: 100%;
+            margin-bottom: 0.75rem;
         }
 
         .detail-card h4 {
@@ -375,11 +255,10 @@ def inject_styles() -> None:
         }
 
         .swap-card {
-            background: rgba(255, 255, 255, 0.78);
+            background: #ffffff;
             border: 1px solid rgba(20, 54, 59, 0.08);
-            border-radius: 18px;
+            border-radius: 16px;
             padding: 0.95rem 1rem;
-            min-height: 176px;
             margin-bottom: 0.7rem;
         }
 
@@ -412,9 +291,9 @@ def inject_styles() -> None:
         }
 
         .empty-state {
-            background: rgba(255, 255, 255, 0.75);
+            background: #ffffff;
             border: 1px dashed rgba(20, 54, 59, 0.18);
-            border-radius: 22px;
+            border-radius: 18px;
             padding: 1.15rem 1.15rem;
         }
 
@@ -429,9 +308,9 @@ def inject_styles() -> None:
 
         .history-item {
             padding: 0.9rem 1rem;
-            border-radius: 18px;
+            border-radius: 16px;
             border: 1px solid var(--pet-line);
-            background: rgba(255, 255, 255, 0.7);
+            background: #ffffff;
             margin-bottom: 0.75rem;
         }
 
@@ -443,8 +322,8 @@ def inject_styles() -> None:
 
         .sidebar-note {
             padding: 0.95rem 1rem;
-            border-radius: 18px;
-            background: rgba(255, 255, 255, 0.82);
+            border-radius: 16px;
+            background: #ffffff;
             border: 1px solid var(--pet-line);
             margin-bottom: 0.9rem;
             line-height: 1.65;
@@ -453,7 +332,7 @@ def inject_styles() -> None:
         .soft-note {
             padding: 0.78rem 0.9rem;
             border-radius: 16px;
-            background: rgba(255, 255, 255, 0.76);
+            background: #ffffff;
             border: 1px solid rgba(20, 54, 59, 0.08);
             margin-bottom: 1rem;
             line-height: 1.6;
@@ -465,8 +344,8 @@ def inject_styles() -> None:
             gap: 0.85rem;
             align-items: center;
             padding: 0.95rem 1rem;
-            border-radius: 20px;
-            background: rgba(255, 255, 255, 0.84);
+            border-radius: 18px;
+            background: #ffffff;
             border: 1px solid rgba(20, 54, 59, 0.08);
             margin-bottom: 0.85rem;
         }
@@ -502,9 +381,14 @@ def inject_styles() -> None:
         }
 
         @media (max-width: 900px) {
-            .focus-strip {
+            .app-header {
                 flex-direction: column;
                 align-items: flex-start;
+            }
+
+            .app-summary {
+                text-align: left;
+                max-width: unset;
             }
         }
         </style>
