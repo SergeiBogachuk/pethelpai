@@ -4,402 +4,407 @@ import base64
 from datetime import datetime
 from html import escape
 from pathlib import Path
-from urllib.parse import quote_plus
 from uuid import uuid4
 
 import streamlit as st
 
 from engine import (
-    analyze_food,
+    analyze_behavior,
     answer_follow_up,
-    extract_food_context_from_image,
-    get_care_tips,
+    behavior_issue_choices,
+    extract_behavior_context_from_image,
+    get_routine_guide,
     has_openai_key,
 )
 from styles import inject_styles
 
 
-CONDITION_OPTIONS = [
-    "Pancreatitis",
-    "Kidney disease",
-    "Diabetes",
-    "Sensitive stomach",
-    "Food allergies",
-    "Heart disease",
-]
-
-SYMPTOM_OPTIONS = [
-    "Vomiting",
-    "Diarrhea",
-    "Drooling",
-    "Lethargy",
-    "Restlessness",
-    "Tremors",
-    "Stumbling",
-    "Pale gums",
-    "Trouble breathing",
-    "Collapse",
-    "Seizure",
-]
-
-AMOUNT_OPTIONS = ["Lick or crumb", "Small bite", "Moderate portion", "Large portion"]
-TIME_OPTIONS = ["Within 30 minutes", "30 minutes to 2 hours", "2 to 6 hours ago", "More than 6 hours ago"]
+NEW_PROFILE = "__new__"
 ASSETS_DIR = Path(__file__).parent / "assets"
 LOGO_CANDIDATES = ["logo.svg", "logo.png", "logo.webp", "logo.jpg", "logo.jpeg"]
 LANGUAGE_OPTIONS = ["ru", "en"]
+CONDITION_OPTIONS = [
+    "recent_adoption",
+    "rescue_history",
+    "senior_pet",
+    "pain_or_mobility",
+    "noise_sensitivity",
+    "multi_pet_home",
+]
+WHEN_OPTIONS = [
+    "home_alone",
+    "guests",
+    "walks",
+    "car",
+    "night",
+    "anytime",
+    "litter_box",
+    "mealtime",
+    "new_home",
+]
+INTENSITY_OPTIONS = ["low", "medium", "high"]
+DURATION_OPTIONS = ["sudden", "days", "weeks", "months"]
 
 UI_TEXT = {
     "en": {
         "language": "Language",
         "language_ru": "Русский",
         "language_en": "English",
-        "tagline": "Fast food-safety checks for dogs and cats",
+        "tagline": "AI behavior coach for calmer pets and calmer homes",
         "active_pet": "Active pet",
-        "pet_profile": "Pet profile",
         "draft_pet": "Draft pet profile",
-        "accurate_profile": "Accurate age and weight make the result more reliable.",
+        "pet_profile": "Pet profile",
+        "profile_hint": "Keep this simple. We only use it to personalize behavior guidance.",
+        "profile_picker": "Choose a profile",
+        "new_profile": "New draft profile",
         "pet_name": "Pet name",
+        "pet_default_name": "My pet",
         "species": "Species",
         "dog": "Dog",
         "cat": "Cat",
         "age_years": "Age (years)",
         "weight_lb": "Weight (lb)",
         "breed_or_mix": "Breed or mix",
-        "allergies": "Allergies",
-        "allergies_placeholder": "Chicken, dairy, beef",
-        "conditions": "Conditions",
-        "save_profile": "Save pet profile",
-        "update_profile": "Update pet profile",
-        "delete_pet": "Delete active pet",
+        "triggers": "Known triggers",
+        "triggers_placeholder": "Doorbell, vacuum, strangers, nighttime, car rides",
+        "conditions": "Context to keep in mind",
+        "save_profile": "Save profile",
+        "update_profile": "Update profile",
+        "delete_pet": "Delete saved profile",
         "profile_saved": "Profile saved for {name}.",
-        "how_verdicts_work": "How verdicts work",
-        "verdict_safe_expl": "`Safe` means relatively low risk when plain and portion-controlled.",
-        "verdict_caution_expl": "`Caution` means ingredient, amount, or pet-specific risk needs a closer look.",
-        "verdict_avoid_expl": "`Avoid` means pause and escalate quickly, especially if the food was already eaten.",
-        "vet_note": "For urgent or worsening symptoms, contact a veterinarian.",
-        "food_tab": "Food Coach",
-        "emergency_tab": "Emergency Mode",
-        "care_tab": "Care Guide",
+        "profile_deleted": "Saved profile removed.",
+        "behavior_tab": "Behavior Coach",
+        "routine_tab": "Routine Plan",
         "history_tab": "History",
-        "food_title": "Food Coach",
-        "food_caption": "Use this for everyday feeding questions: is it a good add-on, an occasional treat, or something to skip?",
-        "add_photo": "Add photo (optional)",
-        "image_input": "Image input",
-        "skip_image": "Skip image",
-        "use_camera": "Use camera",
-        "upload_photo": "Upload photo",
-        "photo_api_note": "Photo-only checks need OPENAI_API_KEY. Text checks already work.",
-        "take_picture": "Take a picture of the food or packaging",
-        "upload_food_photo": "Upload a food photo",
-        "photo_caption": "Photo for analysis",
-        "food_description": "Food description or ingredients",
-        "food_placeholder": "Example: peanut butter, banana, plain yogurt\nOr: chicken nuggets with ketchup\nOr paste the ingredient list from the package",
-        "already_ate": "My pet already ate some of this",
-        "amount": "Amount",
-        "food_examples": "Examples: peanut butter, rotisserie chicken, garlic bread, grapes, yogurt",
-        "analyze_food": "Analyze food safety",
-        "need_input": "Add a food description, an ingredient list, or a photo first.",
-        "photo_only_warning": "For photo-only checks, add `OPENAI_API_KEY` or type a short food description below the image.",
-        "reading_photo": "Reading the photo...",
+        "coach_title": "Behavior Coach",
+        "coach_caption": "Describe what is happening, when it shows up, and how intense it feels. The app will give you a calmer same-day plan instead of a panic answer.",
+        "issue_type": "What feels closest to the problem?",
+        "description": "What is happening?",
+        "description_placeholder": "Example: He barks and scratches the door when I leave. It starts after I pick up my keys and gets worse in 2-3 minutes.",
+        "when_happens": "When does it usually happen?",
+        "intensity": "Intensity",
+        "duration": "How long has this been going on?",
+        "optional_details": "Optional details",
+        "already_tried": "What have you already tried?",
+        "tried_placeholder": "Treats, longer walks, crate, ignoring, white noise, more play...",
+        "upload_scene": "Add a photo of the setup (optional)",
+        "photo_note": "A scene photo helps the app read the environment. If you only upload a photo, OPENAI_API_KEY needs to be connected.",
+        "analyze_behavior": "Build my plan",
+        "need_input": "Add a short description or a setup photo first.",
+        "photo_only_warning": "For photo-only coaching, connect OPENAI_API_KEY or type a short description under the photo.",
+        "reading_photo": "Reading the setup photo...",
         "result": "Result",
-        "empty_food_title": "Type the food first, then get a diet-style read.",
-        "empty_food_copy": "You will see whether it fits well, only works as an occasional treat, or is better skipped.",
+        "empty_title": "Start with one behavior problem.",
+        "empty_copy": "You will get a likely pattern, same-day steps, a 7-day plan, and guidance on when to bring in a vet or trainer.",
+        "detected_signals": "Signals I used",
+        "image_read_title": "What I notice in the setup",
+        "confidence": "Confidence: {value}",
         "ask_follow_up": "Ask a follow-up",
         "question": "Question",
-        "follow_up_placeholder": "What symptoms should I watch for?",
+        "follow_up_placeholder": "What should I do first tonight?",
         "answer_follow_up": "Answer follow-up",
-        "emergency_title": "Emergency Mode",
-        "emergency_caption": "Use this only if the food was already eaten or symptoms have started.",
-        "what_was_eaten": "What was eaten?",
-        "emergency_placeholder": "Example: half a chocolate chip cookie\nOr: garlic pizza crust\nOr: sugar-free gum",
-        "how_much": "How much?",
-        "when_happened": "When did it happen?",
-        "symptoms_optional": "Symptoms (optional but helpful)",
-        "current_symptoms": "Current symptoms",
-        "run_emergency": "Run emergency review",
-        "emergency_need_input": "Describe what your pet ate so I can triage the risk.",
-        "empty_emergency_title": "Use this when the food is already eaten.",
-        "empty_emergency_copy": "This path weighs symptoms, amount, and known toxins more aggressively than the regular food check.",
-        "care_title": "Personalized care guide",
-        "care_caption": "A calmer everyday baseline based on the active pet profile.",
-        "safer_picks": "Safer Everyday Picks",
-        "double_check": "Always Double-Check",
-        "profile_notes": "Profile-Specific Notes",
-        "recent_checks": "Recent checks",
+        "routine_title": "Routine Plan",
+        "routine_caption": "A simple baseline for calmer days. Use this first, then layer the issue-specific plan on top.",
+        "weekly_focus": "Weekly focus",
+        "history_title": "No coaching sessions yet",
+        "history_copy": "Your recent behavior plans will show up here after the first run.",
         "clear_history": "Clear history",
-        "history_title": "No checks yet",
-        "history_copy": "Run a food safety scan or emergency review and your recent decisions will show up here.",
-        "what_to_do": "What To Do Now",
-        "why_verdict": "Why This Verdict",
-        "symptoms_to_watch": "Symptoms to watch",
-        "more_detail": "More detail",
-        "detected_signals": "Detected signals",
-        "image_read": "Photo read",
-        "confidence": "Confidence: {value}",
-        "swap_idea": "Swap Idea {index}",
+        "history_empty": "Nothing saved yet",
+        "history_behavior": "Behavior Coach",
+        "help_note": "Pet Help AI is a coach, not a diagnosis tool. Sudden changes, pain signs, trouble urinating, or severe distress deserve veterinary input fast.",
         "chewy": "Chewy",
         "amazon": "Amazon",
-        "photo_read_title": "What I see in the photo",
-        "history_food": "Food Coach",
-        "history_emergency": "Emergency Mode",
     },
     "ru": {
         "language": "Язык",
         "language_ru": "Русский",
         "language_en": "English",
-        "tagline": "Быстрая проверка еды для собак и кошек",
+        "tagline": "AI-коуч по поведению для более спокойных питомцев и более спокойного дома",
         "active_pet": "Активный питомец",
+        "draft_pet": "Черновик профиля",
         "pet_profile": "Профиль питомца",
-        "draft_pet": "Черновик профиля питомца",
-        "accurate_profile": "Точный возраст и вес делают результат надежнее.",
+        "profile_hint": "Держим это простым. Профиль нужен только для персонализации поведенческого плана.",
+        "profile_picker": "Выбери профиль",
+        "new_profile": "Новый черновик",
         "pet_name": "Имя питомца",
+        "pet_default_name": "Мой питомец",
         "species": "Вид",
         "dog": "Собака",
         "cat": "Кошка",
         "age_years": "Возраст (лет)",
         "weight_lb": "Вес (lb)",
         "breed_or_mix": "Порода или метис",
-        "allergies": "Аллергии",
-        "allergies_placeholder": "Курица, молочное, говядина",
-        "conditions": "Состояния",
+        "triggers": "Известные триггеры",
+        "triggers_placeholder": "Звонок в дверь, пылесос, чужие люди, ночь, поездки",
+        "conditions": "Что важно учитывать",
         "save_profile": "Сохранить профиль",
         "update_profile": "Обновить профиль",
-        "delete_pet": "Удалить активного питомца",
+        "delete_pet": "Удалить сохраненный профиль",
         "profile_saved": "Профиль для {name} сохранен.",
-        "how_verdicts_work": "Как работают вердикты",
-        "verdict_safe_expl": "`Можно` значит относительно низкий риск, если еда простая и порция маленькая.",
-        "verdict_caution_expl": "`Осторожно` значит, что состав, количество или профиль питомца требуют более внимательной проверки.",
-        "verdict_avoid_expl": "`Нельзя` значит, что лучше остановиться и быстрее усилить осторожность, особенно если еда уже съедена.",
-        "vet_note": "Если симптомы срочные или усиливаются, свяжитесь с ветеринаром.",
-        "food_tab": "Пищевой помощник",
-        "emergency_tab": "Экстренный режим",
-        "care_tab": "Гид по уходу",
+        "profile_deleted": "Сохраненный профиль удален.",
+        "behavior_tab": "Поведенческий коуч",
+        "routine_tab": "Рутинный план",
         "history_tab": "История",
-        "food_title": "Пищевой помощник",
-        "food_caption": "Используй это для обычных вопросов по рациону: это хороший вариант, редкое угощение или лучше пропустить?",
-        "add_photo": "Добавить фото (необязательно)",
-        "image_input": "Источник изображения",
-        "skip_image": "Без фото",
-        "use_camera": "Камера",
-        "upload_photo": "Загрузить фото",
-        "photo_api_note": "Для проверки только по фото нужен OPENAI_API_KEY. Текстовая проверка уже работает.",
-        "take_picture": "Сделай фото еды или упаковки",
-        "upload_food_photo": "Загрузи фото еды",
-        "photo_caption": "Фото для анализа",
-        "food_description": "Описание еды или ингредиенты",
-        "food_placeholder": "Например: арахисовая паста, банан, простой йогурт\nИли: куриные наггетсы с кетчупом\nИли вставь состав с упаковки",
-        "already_ate": "Питомец уже это съел",
-        "amount": "Количество",
-        "food_examples": "Примеры: арахисовая паста, курица-гриль, чесночный хлеб, виноград, йогурт",
-        "analyze_food": "Проверить безопасность еды",
-        "need_input": "Сначала добавь описание еды, состав или фото.",
-        "photo_only_warning": "Для проверки только по фото добавь `OPENAI_API_KEY` или напиши короткое описание еды под фото.",
-        "reading_photo": "Читаю фото...",
+        "coach_title": "Поведенческий коуч",
+        "coach_caption": "Опиши, что происходит, когда это случается и насколько это сильно. Ниже будет спокойный план на сегодня, а не тревожная паника.",
+        "issue_type": "Что ближе всего к проблеме?",
+        "description": "Что происходит?",
+        "description_placeholder": "Например: Он лает и царапает дверь, когда я ухожу. Начинается уже после того, как я беру ключи, и через 2-3 минуты усиливается.",
+        "when_happens": "Когда это обычно случается?",
+        "intensity": "Насколько это сильно",
+        "duration": "Как давно это идет?",
+        "optional_details": "Необязательные детали",
+        "already_tried": "Что вы уже пробовали?",
+        "tried_placeholder": "Лакомства, длинные прогулки, клетка, игнорирование, белый шум, больше игр...",
+        "upload_scene": "Добавить фото обстановки (необязательно)",
+        "photo_note": "Фото помогает понять окружение. Если загружается только фото без текста, нужен подключенный OPENAI_API_KEY.",
+        "analyze_behavior": "Собрать мой план",
+        "need_input": "Сначала добавь короткое описание или фото обстановки.",
+        "photo_only_warning": "Для коучинга только по фото нужен OPENAI_API_KEY или короткое описание под фото.",
+        "reading_photo": "Читаю фото обстановки...",
         "result": "Результат",
-        "empty_food_title": "Сначала введи еду, потом получишь диетологический разбор.",
-        "empty_food_copy": "Ниже будет видно: это хороший вариант, редкое угощение или лучше не включать в рацион.",
+        "empty_title": "Начни с одной поведенческой проблемы.",
+        "empty_copy": "Ты получишь вероятный паттерн, шаги на сегодня, план на 7 дней и подсказку, когда уже подключать ветеринара или тренера.",
+        "detected_signals": "Что я учел",
+        "image_read_title": "Что я замечаю в обстановке",
+        "confidence": "Уверенность: {value}",
         "ask_follow_up": "Задать уточняющий вопрос",
         "question": "Вопрос",
-        "follow_up_placeholder": "За какими симптомами мне следить?",
+        "follow_up_placeholder": "Что мне сделать первым делом сегодня вечером?",
         "answer_follow_up": "Ответить",
-        "emergency_title": "Экстренный режим",
-        "emergency_caption": "Используй это только если еда уже съедена или симптомы уже начались.",
-        "what_was_eaten": "Что было съедено?",
-        "emergency_placeholder": "Например: половина печенья с шоколадом\nИли: корочка пиццы с чесноком\nИли: жвачка без сахара",
-        "how_much": "Сколько?",
-        "when_happened": "Когда это произошло?",
-        "symptoms_optional": "Симптомы (необязательно, но полезно)",
-        "current_symptoms": "Текущие симптомы",
-        "run_emergency": "Запустить экстренную проверку",
-        "emergency_need_input": "Опиши, что именно съел питомец, чтобы я мог оценить риск.",
-        "empty_emergency_title": "Используй этот режим, когда еда уже съедена.",
-        "empty_emergency_copy": "Здесь симптомы, количество и известные токсины оцениваются строже, чем в обычной проверке еды.",
-        "care_title": "Персональный гид по уходу",
-        "care_caption": "Спокойная повседневная база с учетом активного профиля питомца.",
-        "safer_picks": "Более безопасные варианты на каждый день",
-        "double_check": "Что всегда перепроверять",
-        "profile_notes": "Заметки под профиль питомца",
-        "recent_checks": "Последние проверки",
+        "routine_title": "Рутинный план",
+        "routine_caption": "Простая спокойная база на каждый день. Сначала держим это, потом сверху добавляем точечный план по проблеме.",
+        "weekly_focus": "Фокус недели",
+        "history_title": "Пока нет сессий коучинга",
+        "history_copy": "После первого запуска здесь появятся последние поведенческие планы.",
         "clear_history": "Очистить историю",
-        "history_title": "Пока нет проверок",
-        "history_copy": "Сделай проверку еды или экстренный разбор, и последние решения появятся здесь.",
-        "what_to_do": "Что делать сейчас",
-        "why_verdict": "Почему такой вердикт",
-        "symptoms_to_watch": "За какими симптомами следить",
-        "more_detail": "Больше деталей",
-        "detected_signals": "Обнаруженные сигналы",
-        "image_read": "Что прочитано с фото",
-        "confidence": "Уверенность: {value}",
-        "swap_idea": "Идея замены {index}",
+        "history_empty": "Пока ничего нет",
+        "history_behavior": "Поведенческий коуч",
+        "help_note": "Pet Help AI — это коуч, а не инструмент для диагноза. Резкие изменения, боль, проблемы с мочеиспусканием или тяжелый дистресс требуют более быстрого контакта с ветеринаром.",
         "chewy": "Chewy",
         "amazon": "Amazon",
-        "photo_read_title": "Что я вижу на фото",
-        "history_food": "Пищевой помощник",
-        "history_emergency": "Экстренный режим",
     },
 }
 
-DISPLAY_LABELS = {
-    "Pancreatitis": {"en": "Pancreatitis", "ru": "Панкреатит"},
-    "Kidney disease": {"en": "Kidney disease", "ru": "Болезнь почек"},
-    "Diabetes": {"en": "Diabetes", "ru": "Диабет"},
-    "Sensitive stomach": {"en": "Sensitive stomach", "ru": "Чувствительный желудок"},
-    "Food allergies": {"en": "Food allergies", "ru": "Пищевые аллергии"},
-    "Heart disease": {"en": "Heart disease", "ru": "Болезнь сердца"},
-    "Vomiting": {"en": "Vomiting", "ru": "Рвота"},
-    "Diarrhea": {"en": "Diarrhea", "ru": "Диарея"},
-    "Drooling": {"en": "Drooling", "ru": "Слюнотечение"},
-    "Lethargy": {"en": "Lethargy", "ru": "Вялость"},
-    "Restlessness": {"en": "Restlessness", "ru": "Беспокойство"},
-    "Tremors": {"en": "Tremors", "ru": "Тремор"},
-    "Stumbling": {"en": "Stumbling", "ru": "Шаткость"},
-    "Pale gums": {"en": "Pale gums", "ru": "Бледные десны"},
-    "Trouble breathing": {"en": "Trouble breathing", "ru": "Трудное дыхание"},
-    "Collapse": {"en": "Collapse", "ru": "Коллапс"},
-    "Seizure": {"en": "Seizure", "ru": "Судорога"},
-    "Lick or crumb": {"en": "Lick or crumb", "ru": "Лизок или крошка"},
-    "Small bite": {"en": "Small bite", "ru": "Маленький кусочек"},
-    "Moderate portion": {"en": "Moderate portion", "ru": "Средняя порция"},
-    "Large portion": {"en": "Large portion", "ru": "Большая порция"},
-    "Within 30 minutes": {"en": "Within 30 minutes", "ru": "В течение 30 минут"},
-    "30 minutes to 2 hours": {"en": "30 minutes to 2 hours", "ru": "От 30 минут до 2 часов"},
-    "2 to 6 hours ago": {"en": "2 to 6 hours ago", "ru": "2–6 часов назад"},
-    "More than 6 hours ago": {"en": "More than 6 hours ago", "ru": "Больше 6 часов назад"},
+CONDITION_LABELS = {
+    "en": {
+        "recent_adoption": "Recent adoption",
+        "rescue_history": "Rescue or unknown history",
+        "senior_pet": "Senior pet",
+        "pain_or_mobility": "Pain or mobility concerns",
+        "noise_sensitivity": "Noise sensitivity",
+        "multi_pet_home": "Multi-pet home",
+    },
+    "ru": {
+        "recent_adoption": "Недавнее появление в доме",
+        "rescue_history": "Приют или неизвестная история",
+        "senior_pet": "Пожилой питомец",
+        "pain_or_mobility": "Есть боль или сложности с движением",
+        "noise_sensitivity": "Чувствительность к шуму",
+        "multi_pet_home": "В доме несколько питомцев",
+    },
+}
+
+WHEN_LABELS = {
+    "en": {
+        "home_alone": "When left home alone",
+        "guests": "When guests or visitors appear",
+        "walks": "On walks or near the front door",
+        "car": "In the car or before a trip",
+        "night": "At night",
+        "anytime": "Across the day",
+        "litter_box": "Around the litter box",
+        "mealtime": "Around food, toys, or high-value items",
+        "new_home": "Since a recent change",
+    },
+    "ru": {
+        "home_alone": "Когда остается один дома",
+        "guests": "Когда приходят гости или люди",
+        "walks": "На прогулках или у входной двери",
+        "car": "В машине или перед поездкой",
+        "night": "Ночью",
+        "anytime": "В течение дня",
+        "litter_box": "Вокруг лотка",
+        "mealtime": "Возле еды, игрушек или ценных вещей",
+        "new_home": "После недавних перемен",
+    },
+}
+
+INTENSITY_LABELS = {
+    "en": {"low": "Low", "medium": "Medium", "high": "High"},
+    "ru": {"low": "Низко", "medium": "Средне", "high": "Сильно"},
+}
+
+DURATION_LABELS = {
+    "en": {"sudden": "Started suddenly", "days": "A few days", "weeks": "A few weeks", "months": "A month or more"},
+    "ru": {"sudden": "Началось резко", "days": "Несколько дней", "weeks": "Несколько недель", "months": "Месяц и больше"},
 }
 
 
-@st.cache_data(show_spinner=False)
-def load_logo_data_uri() -> str:
-    mime_by_suffix = {
-        ".svg": "image/svg+xml",
-        ".png": "image/png",
-        ".webp": "image/webp",
-        ".jpg": "image/jpeg",
-        ".jpeg": "image/jpeg",
-    }
+def t(key: str, language: str, **kwargs: str) -> str:
+    text = UI_TEXT[language].get(key, key)
+    return text.format(**kwargs) if kwargs else text
 
+
+def load_logo_data_uri() -> str | None:
     for filename in LOGO_CANDIDATES:
-        path = ASSETS_DIR / filename
-        if not path.exists():
+        candidate = ASSETS_DIR / filename
+        if not candidate.exists():
             continue
-
-        encoded = base64.b64encode(path.read_bytes()).decode("ascii")
-        mime_type = mime_by_suffix.get(path.suffix.lower(), "image/png")
+        mime_type = {
+            ".svg": "image/svg+xml",
+            ".png": "image/png",
+            ".webp": "image/webp",
+            ".jpg": "image/jpeg",
+            ".jpeg": "image/jpeg",
+        }.get(candidate.suffix.lower(), "image/png")
+        encoded = base64.b64encode(candidate.read_bytes()).decode("ascii")
         return f"data:{mime_type};base64,{encoded}"
-
-    return ""
-
-
-def t(language: str, key: str, **kwargs: object) -> str:
-    template = UI_TEXT.get(language, UI_TEXT["en"]).get(key, UI_TEXT["en"].get(key, key))
-    return template.format(**kwargs)
-
-
-def display_label(language: str, value: str) -> str:
-    return DISPLAY_LABELS.get(value, {}).get(language, value)
-
-
-def ensure_state() -> None:
-    st.session_state.setdefault("pet_profiles", [])
-    st.session_state.setdefault("selected_profile_id", "__new__")
-    st.session_state.setdefault("last_food_analysis", None)
-    st.session_state.setdefault("last_emergency_analysis", None)
-    st.session_state.setdefault("food_follow_up_answer", "")
-    st.session_state.setdefault("history", [])
-    st.session_state.setdefault("language", "ru")
-
-
-def make_profile(
-    profile_id: str,
-    name: str,
-    species: str,
-    age_years: float,
-    weight_lbs: float,
-    breed: str,
-    allergies: str,
-    conditions: list[str],
-) -> dict[str, object]:
-    clean_name = name.strip() or "Your pet"
-    return {
-        "id": profile_id,
-        "name": clean_name,
-        "species": species,
-        "age_years": float(age_years or 0),
-        "weight_lbs": float(weight_lbs or 0),
-        "breed": breed.strip(),
-        "allergies": allergies.strip(),
-        "conditions": conditions,
-    }
-
-
-def get_profile(profile_id: str) -> dict[str, object] | None:
-    for profile in st.session_state.pet_profiles:
-        if profile["id"] == profile_id:
-            return profile
     return None
 
 
-def upsert_profile(profile: dict[str, object]) -> None:
-    for index, existing in enumerate(st.session_state.pet_profiles):
-        if existing["id"] == profile["id"]:
-            st.session_state.pet_profiles[index] = profile
-            return
-    st.session_state.pet_profiles.append(profile)
+def default_pet() -> dict[str, object]:
+    return {
+        "id": "",
+        "name": "",
+        "species": "dog",
+        "age_years": 4.0,
+        "weight_lb": 35.0,
+        "breed": "",
+        "triggers": "",
+        "conditions": [],
+    }
 
 
-def remove_profile(profile_id: str) -> None:
-    st.session_state.pet_profiles = [
-        profile for profile in st.session_state.pet_profiles if profile["id"] != profile_id
+def ensure_state() -> None:
+    if "language" not in st.session_state:
+        st.session_state.language = "ru"
+    if "pets" not in st.session_state:
+        st.session_state.pets = []
+    if "active_pet_id" not in st.session_state:
+        st.session_state.active_pet_id = None
+    if "history" not in st.session_state:
+        st.session_state.history = []
+    if "last_analysis" not in st.session_state:
+        st.session_state.last_analysis = None
+    if "follow_up_answer" not in st.session_state:
+        st.session_state.follow_up_answer = ""
+    if "follow_up_question" not in st.session_state:
+        st.session_state.follow_up_question = ""
+    if "pet_choice" not in st.session_state:
+        st.session_state.pet_choice = NEW_PROFILE
+
+    required_inputs = [
+        "pet_name_input",
+        "species_input",
+        "age_input",
+        "weight_input",
+        "breed_input",
+        "triggers_input",
+        "conditions_input",
     ]
+    if any(key not in st.session_state for key in required_inputs):
+        load_pet_into_inputs(default_pet())
 
 
-def format_profile_label(profile: dict[str, object], language: str) -> str:
-    name = str(profile.get("name") or "Your pet")
-    species = display_label(language, str(profile.get("species") or "Dog"))
-    weight = profile.get("weight_lbs") or 0
-    return f"{name} • {species} • {weight:.0f} lb"
+def get_pet_by_id(pet_id: str | None) -> dict[str, object] | None:
+    if not pet_id:
+        return None
+    for pet in st.session_state.pets:
+        if pet["id"] == pet_id:
+            return pet
+    return None
 
 
-def current_pet_summary(profile: dict[str, object], language: str) -> str:
-    breed = str(profile.get("breed") or "").strip()
-    species = display_label(language, str(profile.get("species") or "Dog"))
-    age_years = float(profile.get("age_years") or 0)
-    weight_lbs = float(profile.get("weight_lbs") or 0)
-    details = [species]
-
-    if age_years:
-        details.append(f"{age_years:.0f} {'лет' if language == 'ru' else 'years'}")
-    if weight_lbs:
-        details.append(f"{weight_lbs:.0f} lb")
-    if breed:
-        details.append(breed)
-
-    return " • ".join(details)
+def load_pet_into_inputs(pet: dict[str, object]) -> None:
+    st.session_state.pet_name_input = str(pet.get("name", ""))
+    st.session_state.species_input = str(pet.get("species", "dog"))
+    st.session_state.age_input = float(pet.get("age_years", 4.0) or 4.0)
+    st.session_state.weight_input = float(pet.get("weight_lb", 35.0) or 35.0)
+    st.session_state.breed_input = str(pet.get("breed", ""))
+    st.session_state.triggers_input = str(pet.get("triggers", ""))
+    st.session_state.conditions_input = list(pet.get("conditions", []))
 
 
-def render_header(current_pet: dict[str, object], language: str) -> None:
-    right_copy = current_pet_summary(current_pet, language)
-    logo_data_uri = load_logo_data_uri()
-    logo_markup = (
-        f'<img src="{logo_data_uri}" alt="Pet Help AI logo" class="brand-mark" />'
-        if logo_data_uri
-        else '<div class="brand-fallback">PH</div>'
+def current_pet_from_inputs(language: str) -> dict[str, object]:
+    name = (st.session_state.get("pet_name_input") or "").strip()
+    return {
+        "id": st.session_state.get("active_pet_id") or "",
+        "name": name or t("pet_default_name", language),
+        "species": st.session_state.get("species_input", "dog"),
+        "age_years": float(st.session_state.get("age_input", 4.0)),
+        "weight_lb": float(st.session_state.get("weight_input", 35.0)),
+        "breed": (st.session_state.get("breed_input") or "").strip(),
+        "triggers": (st.session_state.get("triggers_input") or "").strip(),
+        "conditions": list(st.session_state.get("conditions_input", [])),
+    }
+
+
+def on_pet_choice_change() -> None:
+    choice = st.session_state.get("pet_choice", NEW_PROFILE)
+    if choice == NEW_PROFILE:
+        st.session_state.active_pet_id = None
+        load_pet_into_inputs(default_pet())
+        return
+    pet = get_pet_by_id(choice)
+    if pet:
+        st.session_state.active_pet_id = pet["id"]
+        load_pet_into_inputs(pet)
+
+
+def persist_current_pet(language: str) -> str:
+    pet = current_pet_from_inputs(language)
+    pet_name = str(pet["name"])
+    active_pet_id = st.session_state.get("active_pet_id")
+
+    if active_pet_id:
+        for index, saved_pet in enumerate(st.session_state.pets):
+            if saved_pet["id"] == active_pet_id:
+                updated = dict(pet)
+                updated["id"] = active_pet_id
+                st.session_state.pets[index] = updated
+                st.session_state.pet_choice = active_pet_id
+                return pet_name
+
+    pet_id = str(uuid4())
+    saved = dict(pet)
+    saved["id"] = pet_id
+    st.session_state.pets.append(saved)
+    st.session_state.active_pet_id = pet_id
+    st.session_state.pet_choice = pet_id
+    return pet_name
+
+
+def delete_active_pet() -> bool:
+    active_pet_id = st.session_state.get("active_pet_id")
+    if not active_pet_id:
+        return False
+    st.session_state.pets = [pet for pet in st.session_state.pets if pet["id"] != active_pet_id]
+    st.session_state.active_pet_id = None
+    st.session_state.pet_choice = NEW_PROFILE
+    load_pet_into_inputs(default_pet())
+    return True
+
+
+def render_brand_logo(logo_uri: str | None) -> str:
+    if logo_uri:
+        return f'<img src="{logo_uri}" alt="Pet Help AI logo" class="brand-mark"/>'
+    return '<div class="brand-fallback">PH</div>'
+
+
+def render_sidebar_brand(logo_uri: str | None, language: str) -> None:
+    mark = (
+        f'<img src="{logo_uri}" alt="Pet Help AI logo" class="sidebar-brand-mark"/>'
+        if logo_uri
+        else '<div class="sidebar-brand-mark sidebar-fallback">PH</div>'
     )
-
-    st.markdown(
+    st.sidebar.markdown(
         f"""
-        <div class="app-header">
-            <div class="brand-lockup">
-                {logo_markup}
-                <div>
-                    <div class="brand-name">Pet Help AI</div>
-                    <div class="brand-domain">{escape(t(language, "tagline"))}</div>
-                </div>
-            </div>
-            <div class="app-summary">
-                <div class="app-summary-label">{escape(t(language, "active_pet"))}</div>
-                <div class="app-summary-name">{escape(str(current_pet.get("name") or t(language, "draft_pet")))}</div>
-                <div class="app-summary-copy">{escape(right_copy)}</div>
+        <div class="sidebar-brand">
+            {mark}
+            <div>
+                <div class="sidebar-brand-name">Pet Help AI</div>
+                <div class="sidebar-brand-copy">{escape(t("tagline", language))}</div>
             </div>
         </div>
         """,
@@ -407,18 +412,99 @@ def render_header(current_pet: dict[str, object], language: str) -> None:
     )
 
 
-def render_soft_note(message: str) -> None:
+def render_header(pet: dict[str, object], logo_uri: str | None, language: str) -> None:
+    species_label = t(str(pet["species"]), language)
+    summary = f"{species_label}, {pet['age_years']:.0f}y, {pet['weight_lb']:.0f} lb"
     st.markdown(
-        f'<div class="soft-note">{escape(message)}</div>',
+        f"""
+        <div class="app-header">
+            <div class="brand-lockup">
+                {render_brand_logo(logo_uri)}
+                <div>
+                    <div class="brand-name">Pet Help AI</div>
+                    <div class="brand-domain">pethelpai.com</div>
+                </div>
+            </div>
+            <div class="app-summary">
+                <div class="app-summary-label">{escape(t("active_pet", language))}</div>
+                <div class="app-summary-name">{escape(str(pet["name"]))}</div>
+                <div class="app-summary-copy">{escape(summary)}{f" • {escape(str(pet['breed']))}" if pet['breed'] else ''}</div>
+            </div>
+        </div>
+        """,
         unsafe_allow_html=True,
     )
 
 
-def render_empty_state(kicker: str, title: str, copy: str) -> None:
+def render_list_card(title: str, items: list[str]) -> None:
+    list_html = "".join(f"<li>{escape(item)}</li>" for item in items if item)
+    st.markdown(
+        f"""
+        <div class="detail-card">
+            <h4>{escape(title)}</h4>
+            <ul>{list_html}</ul>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_result(result: dict[str, object], language: str) -> None:
+    class_name = {
+        "safe": "result-safe",
+        "caution": "result-caution",
+        "avoid": "result-avoid",
+    }.get(str(result.get("verdict", "safe")), "result-safe")
+
+    st.markdown(
+        f"""
+        <div class="result-card {class_name}">
+            <div class="result-pill">{escape(str(result.get("badge_label", "")))}</div>
+            <h2 class="result-title">{escape(str(result.get("result_title", "")))}</h2>
+            <p class="result-copy">{escape(str(result.get("summary", "")))}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+    confidence_text = t("confidence", language, value=str(result.get("confidence", "")))
+    st.caption(confidence_text)
+
+    if result.get("image_summary"):
+        render_list_card(t("image_read_title", language), [str(result["image_summary"])])
+
+    render_list_card(str(result.get("drivers_title", "")), list(result.get("drivers", [])))
+    render_list_card(str(result.get("today_title", "")), list(result.get("today_steps", [])))
+    render_list_card(str(result.get("week_title", "")), list(result.get("week_plan", [])))
+    render_list_card(str(result.get("vet_title", "")), list(result.get("vet_flags", [])))
+
+    toolkit_items = list(result.get("toolkit_items", []))
+    if toolkit_items:
+        st.markdown(f"##### {escape(str(result.get('toolkit_title', '')))}")
+        for item in toolkit_items:
+            st.markdown(
+                f"""
+                <div class="swap-card">
+                    <div class="swap-label">{escape(str(result.get("toolkit_title", "")))}</div>
+                    <h4>{escape(item["title"])}</h4>
+                    <p>{escape(item["body"])}</p>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
+            col1, col2 = st.columns(2)
+            col1.link_button(t("chewy", language), item["chewy_url"], use_container_width=True)
+            col2.link_button(t("amazon", language), item["amazon_url"], use_container_width=True)
+
+    with st.expander(t("detected_signals", language), expanded=False):
+        for signal in result.get("detected_signals", []):
+            st.markdown(f"- {signal}")
+
+
+def render_empty_state(title: str, copy: str) -> None:
     st.markdown(
         f"""
         <div class="empty-state">
-            <div class="section-kicker">{escape(kicker)}</div>
             <h3>{escape(title)}</h3>
             <p>{escape(copy)}</p>
         </div>
@@ -427,477 +513,269 @@ def render_empty_state(kicker: str, title: str, copy: str) -> None:
     )
 
 
-def render_detail_card(title: str, items: list[str]) -> None:
-    bullets = "".join(f"<li>{escape(item)}</li>" for item in items)
-    st.markdown(
-        f"""
-        <div class="detail-card">
-            <h4>{escape(title)}</h4>
-            <ul>{bullets}</ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def summary_lines(text: str) -> list[str]:
-    return [line.strip() for line in text.splitlines() if line.strip()]
-
-
-def shop_search_url(provider: str, query: str) -> str:
-    encoded = quote_plus(query)
-    if provider == "Chewy":
-        return f"https://www.chewy.com/s?query={encoded}"
-    return f"https://www.amazon.com/s?k={encoded}"
-
-
-def render_safe_swap(analysis: dict[str, object], language: str) -> None:
-    safe_swap = analysis.get("safe_swap") or {}
-    items = safe_swap.get("items") or []
-    if not items:
+def render_follow_up(language: str) -> None:
+    result = st.session_state.get("last_analysis")
+    if not result:
         return
 
-    if analysis.get("verdict") == "Avoid" and analysis.get("already_ate"):
-        render_soft_note(
-            "В этой ситуации главное — ветеринарная помощь. Блок Safe Swap лучше использовать позже, для следующей покупки, а не вместо помощи."
-            if language == "ru"
-            else "This case is urgent enough that the immediate focus should stay on veterinary guidance. Safe Swap is better used for the next shopping run, not instead of care."
-        )
-        return
-
-    def _render_swap_body() -> None:
-        if safe_swap.get("subtitle"):
-            st.caption(str(safe_swap["subtitle"]))
-
-        for index, item in enumerate(items):
+    with st.expander(t("ask_follow_up", language), expanded=False):
+        st.text_input(t("question", language), key="follow_up_question", placeholder=t("follow_up_placeholder", language))
+        if st.button(t("answer_follow_up", language), use_container_width=True):
+            question = (st.session_state.get("follow_up_question") or "").strip()
+            if question:
+                st.session_state.follow_up_answer = answer_follow_up(question, result, language=language)
+        if st.session_state.get("follow_up_answer"):
             st.markdown(
                 f"""
-                <div class="swap-card">
-                    <div class="swap-label">{escape(t(language, "swap_idea", index=index + 1))}</div>
-                    <h4>{escape(str(item['title']))}</h4>
-                    <p>{escape(str(item['why']))}</p>
-                </div>
+                <div class="soft-note">{escape(st.session_state.follow_up_answer)}</div>
                 """,
                 unsafe_allow_html=True,
             )
-            link_col1, link_col2 = st.columns(2)
-            with link_col1:
-                st.link_button(
-                    t(language, "chewy"),
-                    shop_search_url("Chewy", str(item["query"])),
-                    use_container_width=True,
-                )
-            with link_col2:
-                st.link_button(
-                    t(language, "amazon"),
-                    shop_search_url("Amazon", str(item["query"])),
-                    use_container_width=True,
-                )
-
-        if safe_swap.get("note"):
-            st.caption(str(safe_swap["note"]))
-
-    if analysis.get("verdict") == "Safe":
-        with st.expander(str(safe_swap.get("title") or "Safe Swap"), expanded=False):
-            _render_swap_body()
-        return
-
-    st.markdown(f"### {escape(str(safe_swap.get('title') or 'Safe Swap'))}")
-    _render_swap_body()
 
 
-def render_analysis(analysis: dict[str, object], language: str) -> None:
-    verdict = str(analysis["verdict"]).lower()
-    badge_color = str(analysis["badge_color"])
-    matched_labels = analysis.get("matched_labels") or []
-    actions_title = str(analysis.get("actions_title") or t(language, "what_to_do"))
-    reasons_title = str(analysis.get("reasons_title") or t(language, "why_verdict"))
-    watch_title = str(analysis.get("watch_title") or t(language, "symptoms_to_watch"))
-    presentation_mode = str(analysis.get("presentation_mode") or "acute")
+def render_sidebar(logo_uri: str | None, language: str) -> None:
+    render_sidebar_brand(logo_uri, language)
 
-    st.markdown(
+    st.sidebar.selectbox(
+        t("language", language),
+        LANGUAGE_OPTIONS,
+        index=LANGUAGE_OPTIONS.index(language),
+        format_func=lambda code: t(f"language_{code}", language),
+        key="language",
+    )
+
+    st.sidebar.markdown(
         f"""
-        <div class="result-card result-{verdict}">
-            <div class="result-pill" style="color:{badge_color};">{escape(str(analysis['badge_label']))}</div>
-            <h2 class="result-title">{escape(str(analysis.get('verdict_display') or analysis['verdict']))}</h2>
-            <p class="result-copy">{escape(str(analysis['summary']))}</p>
+        <div class="sidebar-note">
+            <strong>{escape(t("pet_profile", language))}</strong><br/>
+            {escape(t("profile_hint", language))}
         </div>
         """,
         unsafe_allow_html=True,
     )
 
-    confidence_value = {
-        "high": "Высокая" if language == "ru" else "High",
-        "medium": "Средняя" if language == "ru" else "Medium",
-        "low": "Низкая" if language == "ru" else "Low",
-    }.get(str(analysis["confidence"]).lower(), str(analysis["confidence"]))
-    st.caption(t(language, "confidence", value=confidence_value))
+    options = [NEW_PROFILE] + [pet["id"] for pet in st.session_state.pets]
+    if st.session_state.get("pet_choice") not in options:
+        st.session_state.pet_choice = st.session_state.get("active_pet_id") or NEW_PROFILE
 
-    if analysis.get("image_summary"):
-        render_detail_card(t(language, "photo_read_title"), summary_lines(str(analysis["image_summary"])))
-
-    render_detail_card(actions_title, list(analysis["actions"])[:3])
-    render_detail_card(
-        reasons_title,
-        list(analysis["reasons"])[:3]
-        or (["Нужна более точная проверка состава."] if language == "ru" else ["The item needs a closer ingredient check."]),
+    st.sidebar.selectbox(
+        t("profile_picker", language),
+        options,
+        format_func=lambda value: (
+            t("new_profile", language) if value == NEW_PROFILE else str(get_pet_by_id(value)["name"])
+        ),
+        key="pet_choice",
+        on_change=on_pet_choice_change,
     )
 
-    with st.expander(watch_title, expanded=str(analysis["verdict"]) == "Avoid" and presentation_mode == "acute"):
-        for symptom in analysis["watch_for"]:
-            st.write(f"- {symptom}")
+    st.sidebar.text_input(t("pet_name", language), key="pet_name_input")
+    st.sidebar.selectbox(
+        t("species", language),
+        ["dog", "cat"],
+        format_func=lambda value: t(value, language),
+        key="species_input",
+    )
+    st.sidebar.number_input(t("age_years", language), min_value=0.0, max_value=30.0, step=0.5, key="age_input")
+    st.sidebar.number_input(t("weight_lb", language), min_value=1.0, max_value=250.0, step=1.0, key="weight_input")
+    st.sidebar.text_input(t("breed_or_mix", language), key="breed_input")
+    st.sidebar.text_area(
+        t("triggers", language),
+        key="triggers_input",
+        height=90,
+        placeholder=t("triggers_placeholder", language),
+    )
+    st.sidebar.multiselect(
+        t("conditions", language),
+        CONDITION_OPTIONS,
+        format_func=lambda value: CONDITION_LABELS[language][value],
+        key="conditions_input",
+    )
 
-    if matched_labels:
-        with st.expander(t(language, "more_detail"), expanded=False):
-            if matched_labels:
-                st.caption(t(language, "detected_signals"))
-                st.write(", ".join(matched_labels))
+    save_label = t("update_profile", language) if st.session_state.get("active_pet_id") else t("save_profile", language)
+    if st.sidebar.button(save_label, use_container_width=True):
+        saved_name = persist_current_pet(language)
+        st.sidebar.success(t("profile_saved", language, name=saved_name))
+    if st.session_state.get("active_pet_id") and st.sidebar.button(t("delete_pet", language), use_container_width=True):
+        if delete_active_pet():
+            st.sidebar.success(t("profile_deleted", language))
 
-    render_safe_swap(analysis, language)
-
-
-def add_to_history(channel: str, analysis: dict[str, object], current_pet: dict[str, object]) -> None:
-    item = {
-        "id": uuid4().hex[:8],
-        "channel": channel,
-        "timestamp": datetime.now().strftime("%b %d, %Y %I:%M %p"),
-        "verdict": analysis["verdict"],
-        "verdict_display": analysis.get("verdict_display", analysis["verdict"]),
-        "summary": analysis["summary"],
-        "food_text": analysis.get("food_text") or "Image-led scan",
-        "pet_name": current_pet.get("name") or "Your pet",
-    }
-    st.session_state.history = [item] + st.session_state.history[:19]
-
-
-def render_list_card(title: str, items: list[str]) -> None:
-    bullets = "".join(f"<li>{escape(item)}</li>" for item in items)
-    st.markdown(
+    st.sidebar.markdown(
         f"""
-        <div class="surface-card">
-            <div class="section-kicker">{escape(title)}</div>
-            <ul>{bullets}</ul>
-        </div>
+        <div class="soft-note">{escape(t("help_note", language))}</div>
         """,
         unsafe_allow_html=True,
     )
 
 
-def render_history(language: str) -> None:
-    if not st.session_state.history:
-        render_empty_state(
-            t(language, "history_tab"),
-            t(language, "history_title"),
-            t(language, "history_copy"),
+def run_behavior_coach(current_pet: dict[str, object], language: str) -> None:
+    st.subheader(t("coach_title", language))
+    st.caption(t("coach_caption", language))
+
+    issue_choices = behavior_issue_choices(str(current_pet["species"]), language)
+    issue_keys = [key for key, _label in issue_choices]
+    issue_labels = {key: label for key, label in issue_choices}
+
+    with st.form("behavior_coach_form", clear_on_submit=False):
+        issue_key = st.selectbox(
+            t("issue_type", language),
+            issue_keys,
+            format_func=lambda key: issue_labels[key],
         )
+        description = st.text_area(
+            t("description", language),
+            height=140,
+            placeholder=t("description_placeholder", language),
+        )
+
+        col1, col2, col3 = st.columns(3)
+        when_happens = col1.selectbox(
+            t("when_happens", language),
+            WHEN_OPTIONS,
+            format_func=lambda key: WHEN_LABELS[language][key],
+        )
+        intensity = col2.selectbox(
+            t("intensity", language),
+            INTENSITY_OPTIONS,
+            format_func=lambda key: INTENSITY_LABELS[language][key],
+        )
+        duration = col3.selectbox(
+            t("duration", language),
+            DURATION_OPTIONS,
+            format_func=lambda key: DURATION_LABELS[language][key],
+        )
+
+        with st.expander(t("optional_details", language), expanded=False):
+            already_tried = st.text_area(
+                t("already_tried", language),
+                height=110,
+                placeholder=t("tried_placeholder", language),
+            )
+            photo = st.file_uploader(
+                t("upload_scene", language),
+                type=["png", "jpg", "jpeg", "webp"],
+                help=t("photo_note", language),
+            )
+
+        submitted = st.form_submit_button(t("analyze_behavior", language), use_container_width=True)
+
+    if submitted:
+        if not description.strip() and photo is None:
+            st.warning(t("need_input", language))
+        elif photo is not None and not description.strip() and not has_openai_key():
+            st.warning(t("photo_only_warning", language))
+        else:
+            image_context = None
+            if photo is not None and has_openai_key():
+                with st.spinner(t("reading_photo", language)):
+                    image_context = extract_behavior_context_from_image(photo.getvalue(), photo.type, language=language)
+
+            result = analyze_behavior(
+                pet_name=str(current_pet["name"]),
+                species=str(current_pet["species"]),
+                age_years=float(current_pet["age_years"]),
+                weight_lb=float(current_pet["weight_lb"]),
+                breed=str(current_pet["breed"]),
+                triggers=str(current_pet["triggers"]),
+                conditions=list(current_pet["conditions"]),
+                issue_key=issue_key,
+                description=description,
+                when_happens=when_happens,
+                intensity=intensity,
+                duration=duration,
+                already_tried=already_tried,
+                image_context=image_context,
+                language=language,
+            )
+            st.session_state.last_analysis = result
+            st.session_state.follow_up_answer = ""
+            st.session_state.follow_up_question = ""
+            st.session_state.history = [
+                {
+                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
+                    "kind": t("history_behavior", language),
+                    "pet_name": current_pet["name"],
+                    "issue_label": result["issue_label"],
+                    "badge_label": result["badge_label"],
+                    "summary": result["summary"],
+                }
+            ] + st.session_state.history[:11]
+
+    st.markdown(f"##### {escape(t('result', language))}")
+    if st.session_state.get("last_analysis"):
+        render_result(st.session_state.last_analysis, language)
+        render_follow_up(language)
+    else:
+        render_empty_state(t("empty_title", language), t("empty_copy", language))
+
+
+def render_routine_tab(current_pet: dict[str, object], language: str) -> None:
+    guide = get_routine_guide(current_pet, language)
+    st.subheader(t("routine_title", language))
+    st.caption(t("routine_caption", language))
+    st.markdown(
+        f"""
+        <div class="section-card">
+            <div class="section-kicker">Baseline</div>
+            <p>{escape(str(guide['summary']))}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    for section in guide["sections"]:
+        render_list_card(str(section["title"]), list(section["items"]))
+    render_list_card(str(guide["weekly_title"]), list(guide["weekly_focus"]))
+
+
+def render_history_tab(language: str) -> None:
+    st.subheader(t("history_tab", language))
+    if st.button(t("clear_history", language), use_container_width=False):
+        st.session_state.history = []
+
+    if not st.session_state.history:
+        render_empty_state(t("history_title", language), t("history_copy", language))
         return
 
-    for item in st.session_state.history:
-        channel_label = t(language, "history_food") if item["channel"] == "food" else t(language, "history_emergency")
+    for entry in st.session_state.history:
         st.markdown(
             f"""
             <div class="history-item">
-                <div class="history-meta">{escape(item['timestamp'])} • {escape(channel_label)} • {escape(item['pet_name'])}</div>
-                <strong>{escape(str(item.get('verdict_display') or item['verdict']))}</strong> — {escape(item['summary'])}<br/>
-                <span class="history-meta">{escape(str(item['food_text']))}</span>
+                <div class="history-meta">{escape(str(entry['timestamp']))} • {escape(str(entry['kind']))}</div>
+                <strong>{escape(str(entry['pet_name']))}</strong> • {escape(str(entry['issue_label']))}<br/>
+                <em>{escape(str(entry['badge_label']))}</em>
+                <p>{escape(str(entry['summary']))}</p>
             </div>
             """,
             unsafe_allow_html=True,
         )
 
 
-def sidebar_profile_editor(language: str) -> dict[str, object]:
-    profiles = st.session_state.pet_profiles
-    options = ["__new__"] + [profile["id"] for profile in profiles]
-    labels = {"__new__": t(language, "draft_pet")}
-    labels.update({profile["id"]: format_profile_label(profile, language) for profile in profiles})
-
-    if st.session_state.selected_profile_id not in options:
-        st.session_state.selected_profile_id = "__new__"
-
-    with st.expander(t(language, "pet_profile"), expanded=True):
-        selected_profile_id = st.selectbox(
-            t(language, "active_pet"),
-            options=options,
-            index=options.index(st.session_state.selected_profile_id),
-            format_func=lambda profile_id: labels[profile_id],
-            key="profile_selector",
-        )
-        st.session_state.selected_profile_id = selected_profile_id
-        selected_profile = get_profile(selected_profile_id) if selected_profile_id != "__new__" else None
-
-        defaults = selected_profile or {
-            "id": "__draft__",
-            "name": "",
-            "species": "Dog",
-            "age_years": 4.0,
-            "weight_lbs": 25.0,
-            "breed": "",
-            "allergies": "",
-            "conditions": [],
-        }
-
-        st.caption(t(language, "accurate_profile"))
-
-        with st.form(f"pet-profile-form-{selected_profile_id}"):
-            name = st.text_input(t(language, "pet_name"), value=str(defaults.get("name") or ""))
-            species = st.radio(
-                t(language, "species"),
-                options=["Dog", "Cat"],
-                index=0 if defaults.get("species") == "Dog" else 1,
-                horizontal=True,
-                format_func=lambda option: display_label(language, option),
-            )
-            age_years = st.number_input(t(language, "age_years"), min_value=0.0, max_value=30.0, value=float(defaults.get("age_years") or 0), step=1.0)
-            weight_lbs = st.number_input(t(language, "weight_lb"), min_value=0.0, max_value=250.0, value=float(defaults.get("weight_lbs") or 0), step=1.0)
-            breed = st.text_input(t(language, "breed_or_mix"), value=str(defaults.get("breed") or ""))
-            allergies = st.text_input(
-                t(language, "allergies"),
-                value=str(defaults.get("allergies") or ""),
-                placeholder=t(language, "allergies_placeholder"),
-            )
-            conditions = st.multiselect(
-                t(language, "conditions"),
-                options=CONDITION_OPTIONS,
-                default=list(defaults.get("conditions") or []),
-                format_func=lambda option: display_label(language, option),
-            )
-            submitted = st.form_submit_button(
-                t(language, "save_profile") if selected_profile_id == "__new__" else t(language, "update_profile"),
-                use_container_width=True,
-            )
-
-        draft_profile = make_profile(
-            profile_id=selected_profile_id if selected_profile_id != "__new__" else "__draft__",
-            name=name,
-            species=species,
-            age_years=age_years,
-            weight_lbs=weight_lbs,
-            breed=breed,
-            allergies=allergies,
-            conditions=conditions,
-        )
-
-        if submitted:
-            profile_to_save = dict(draft_profile)
-            if selected_profile_id == "__new__":
-                profile_to_save["id"] = uuid4().hex[:8]
-            upsert_profile(profile_to_save)
-            st.session_state.selected_profile_id = str(profile_to_save["id"])
-            st.success(t(language, "profile_saved", name=profile_to_save["name"]))
-            st.rerun()
-
-        if selected_profile_id != "__new__" and st.button(t(language, "delete_pet"), use_container_width=True):
-            remove_profile(selected_profile_id)
-            st.session_state.selected_profile_id = "__new__"
-            st.rerun()
-
-    with st.expander(t(language, "how_verdicts_work"), expanded=False):
-        st.write(t(language, "verdict_safe_expl"))
-        st.write(t(language, "verdict_caution_expl"))
-        st.write(t(language, "verdict_avoid_expl"))
-
-    st.caption(t(language, "vet_note"))
-
-    return draft_profile if selected_profile_id == "__new__" else (selected_profile or draft_profile)
-
-
 def main() -> None:
-    st.set_page_config(
-        page_title="Pet Help AI",
-        page_icon="🐾",
-        layout="wide",
-        initial_sidebar_state="expanded",
-    )
-    ensure_state()
+    st.set_page_config(page_title="Pet Help AI", page_icon="🐾", layout="wide")
     inject_styles()
+    ensure_state()
 
-    with st.sidebar:
-        language = st.selectbox(
-            t(st.session_state.language, "language"),
-            options=LANGUAGE_OPTIONS,
-            index=LANGUAGE_OPTIONS.index(st.session_state.language),
-            format_func=lambda option: t(st.session_state.language, f"language_{option}"),
-            key="language",
-        )
-        current_pet = sidebar_profile_editor(language)
+    language = st.session_state.language
+    logo_uri = load_logo_data_uri()
+    render_sidebar(logo_uri, language)
+    language = st.session_state.language
+    current_pet = current_pet_from_inputs(language)
 
-    render_header(current_pet, language)
+    render_header(current_pet, logo_uri, language)
 
-    food_tab, emergency_tab, care_tab, history_tab = st.tabs(
-        [t(language, "food_tab"), t(language, "emergency_tab"), t(language, "care_tab"), t(language, "history_tab")]
+    tabs = st.tabs(
+        [
+            t("behavior_tab", language),
+            t("routine_tab", language),
+            t("history_tab", language),
+        ]
     )
 
-    with food_tab:
-        st.markdown(f"### {t(language, 'food_title')}")
-        st.caption(t(language, "food_caption"))
-
-        image_file = None
-        with st.expander(t(language, "add_photo"), expanded=False):
-            image_mode = st.radio(
-                t(language, "image_input"),
-                options=["Skip image", "Use camera", "Upload photo"],
-                horizontal=True,
-                format_func=lambda option: t(
-                    language,
-                    {"Skip image": "skip_image", "Use camera": "use_camera", "Upload photo": "upload_photo"}[option],
-                ),
-            )
-            if not has_openai_key():
-                st.caption(t(language, "photo_api_note"))
-
-            if image_mode == "Use camera":
-                image_file = st.camera_input(t(language, "take_picture"))
-            elif image_mode == "Upload photo":
-                image_file = st.file_uploader(t(language, "upload_food_photo"), type=["jpg", "jpeg", "png"], key="food_uploader")
-
-            if image_file is not None:
-                st.image(image_file, caption=t(language, "photo_caption"), use_container_width=True)
-
-        manual_text = st.text_area(
-            t(language, "food_description"),
-            placeholder=t(language, "food_placeholder"),
-            height=160,
-        )
-        control_col1, control_col2 = st.columns(2)
-        with control_col1:
-            already_ate = st.toggle(t(language, "already_ate"))
-        with control_col2:
-            amount = st.select_slider(
-                t(language, "amount"),
-                options=AMOUNT_OPTIONS,
-                value="Small bite",
-                format_func=lambda option: display_label(language, option),
-            )
-
-        st.caption(t(language, "food_examples"))
-
-        if st.button(t(language, "analyze_food"), type="primary", use_container_width=True):
-            if not manual_text.strip() and image_file is None:
-                st.warning(t(language, "need_input"))
-            elif image_file is not None and not manual_text.strip() and not has_openai_key():
-                st.warning(t(language, "photo_only_warning"))
-            else:
-                image_summary = ""
-                if image_file is not None:
-                    with st.spinner(t(language, "reading_photo")):
-                        image_result = extract_food_context_from_image(
-                            image_file.getvalue(),
-                            image_file.type or "image/jpeg",
-                            language=language,
-                        )
-                    image_summary = str(image_result["summary"] or "")
-                    if image_result["error"] and not image_summary:
-                        st.info(str(image_result["error"]))
-
-                analysis = analyze_food(
-                    food_text=manual_text,
-                    pet_profile=current_pet,
-                    already_ate=already_ate,
-                    amount_label=amount,
-                    image_summary=image_summary,
-                    language=language,
-                )
-                st.session_state.last_food_analysis = analysis
-                st.session_state.food_follow_up_answer = ""
-                add_to_history("food", analysis, current_pet)
-
-        st.markdown(f"### {t(language, 'result')}")
-        if st.session_state.last_food_analysis:
-            render_analysis(st.session_state.last_food_analysis, language)
-
-            with st.expander(t(language, "ask_follow_up"), expanded=False):
-                follow_up_question = st.text_input(
-                    t(language, "question"),
-                    placeholder=t(language, "follow_up_placeholder"),
-                    key="food_follow_up_question",
-                )
-                if st.button(t(language, "answer_follow_up"), use_container_width=True):
-                    st.session_state.food_follow_up_answer = answer_follow_up(
-                        follow_up_question,
-                        st.session_state.last_food_analysis,
-                        current_pet,
-                        language=language,
-                    )
-                if st.session_state.food_follow_up_answer:
-                    st.success(st.session_state.food_follow_up_answer)
-        else:
-            render_empty_state(
-                t(language, "food_tab"),
-                t(language, "empty_food_title"),
-                t(language, "empty_food_copy"),
-            )
-
-    with emergency_tab:
-        st.markdown(f"### {t(language, 'emergency_title')}")
-        st.caption(t(language, "emergency_caption"))
-        emergency_food = st.text_area(
-            t(language, "what_was_eaten"),
-            placeholder=t(language, "emergency_placeholder"),
-            height=140,
-        )
-        emergency_meta_left, emergency_meta_right = st.columns(2)
-        with emergency_meta_left:
-            emergency_amount = st.select_slider(
-                t(language, "how_much"),
-                options=AMOUNT_OPTIONS,
-                value="Small bite",
-                key="emergency_amount",
-                format_func=lambda option: display_label(language, option),
-            )
-        with emergency_meta_right:
-            time_since = st.selectbox(
-                t(language, "when_happened"),
-                options=TIME_OPTIONS,
-                format_func=lambda option: display_label(language, option),
-            )
-        with st.expander(t(language, "symptoms_optional"), expanded=False):
-            symptoms = st.multiselect(
-                t(language, "current_symptoms"),
-                options=SYMPTOM_OPTIONS,
-                format_func=lambda option: display_label(language, option),
-            )
-
-        if st.button(t(language, "run_emergency"), type="primary", use_container_width=True):
-            if not emergency_food.strip():
-                st.warning(t(language, "emergency_need_input"))
-            else:
-                analysis = analyze_food(
-                    food_text=emergency_food,
-                    pet_profile=current_pet,
-                    already_ate=True,
-                    amount_label=emergency_amount,
-                    symptoms=symptoms,
-                    time_since=time_since,
-                    language=language,
-                )
-                st.session_state.last_emergency_analysis = analysis
-                add_to_history("emergency", analysis, current_pet)
-
-        st.markdown(f"### {t(language, 'result')}")
-        if st.session_state.last_emergency_analysis:
-            render_analysis(st.session_state.last_emergency_analysis, language)
-        else:
-            render_empty_state(
-                t(language, "emergency_tab"),
-                t(language, "empty_emergency_title"),
-                t(language, "empty_emergency_copy"),
-            )
-
-    with care_tab:
-        care = get_care_tips(current_pet, language=language)
-        st.markdown(f"### {t(language, 'care_title')}")
-        st.caption(t(language, "care_caption"))
-        render_list_card(t(language, "safer_picks"), care["daily_choices"])
-        render_list_card(t(language, "double_check"), care["red_flags"])
-        render_list_card(t(language, "profile_notes"), care["personalization"])
-
-    with history_tab:
-        st.markdown(f"### {t(language, 'recent_checks')}")
-        render_history(language)
-        if st.session_state.history and st.button(t(language, "clear_history"), use_container_width=True):
-            st.session_state.history = []
-            st.rerun()
+    with tabs[0]:
+        run_behavior_coach(current_pet, language)
+    with tabs[1]:
+        render_routine_tab(current_pet, language)
+    with tabs[2]:
+        render_history_tab(language)
 
 
 if __name__ == "__main__":

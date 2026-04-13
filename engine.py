@@ -1,9 +1,11 @@
 from __future__ import annotations
 
 import base64
+import json
 import os
 import re
 from typing import Any
+from urllib.parse import quote_plus
 
 try:
     from openai import OpenAI
@@ -14,1823 +16,1610 @@ except ImportError:  # pragma: no cover - optional at runtime
 MODEL_NAME = os.getenv("OPENAI_MODEL", "gpt-4.1-mini")
 
 RUSSIAN_TERM_MAP = {
-    "шоколад": "chocolate",
-    "какао": "cocoa",
-    "ксилит": "xylitol",
-    "сахарозаменитель": "sugar free sweetener",
-    "жвачка": "gum",
-    "виноград": "grapes",
-    "изюм": "raisins",
-    "лук": "onion",
-    "чеснок": "garlic",
-    "зеленый лук": "chives",
-    "макадамия": "macadamia nuts",
-    "алкоголь": "alcohol",
-    "пиво": "beer",
-    "вино": "wine",
-    "кофе": "coffee",
-    "чай": "tea",
-    "кофеин": "caffeine",
-    "тесто": "dough",
-    "дрожжевое тесто": "yeast dough",
-    "каннабис": "cannabis",
-    "марихуана": "marijuana",
-    "тгк": "thc",
-    "обезболивающее": "pain medicine",
-    "ибупрофен": "ibuprofen",
-    "тайленол": "tylenol",
-    "адвил": "advil",
-    "кость": "bone",
-    "кости": "bones",
-    "початок": "corn cob",
-    "косточка": "fruit pit",
-    "пицца": "pizza",
-    "бургер": "burger",
-    "картошка фри": "fries",
-    "мороженое": "ice cream",
-    "сыр": "cheese",
-    "яйцо": "egg",
-    "яйца": "eggs",
-    "вареное яйцо": "boiled egg",
-    "омлет": "scrambled egg",
-    "йогурт": "yogurt",
-    "печенье": "cookie",
-    "торт": "cake",
-    "пончик": "donut",
-    "конфета": "candy",
-    "острый": "spicy",
-    "острая еда": "spicy food",
-    "сырое мясо": "raw meat",
-    "сырая рыба": "raw fish",
-    "сырое яйцо": "raw egg",
-    "авокадо": "avocado",
-    "арахисовая паста": "peanut butter",
-    "курица": "chicken",
-    "индейка": "turkey",
-    "тыква": "pumpkin",
-    "рис": "rice",
-    "морковь": "carrot",
-    "огурец": "cucumber",
-    "черника": "blueberries",
-    "голубика": "blueberries",
-    "корм": "pet food",
-    "лакомство": "treat",
-    "лакомства": "treats",
+    "скулит": "whining",
+    "лает": "barking",
+    "рычит": "growling",
+    "воет": "howling",
+    "грызет": "chewing",
+    "кусает": "biting",
+    "разрушает": "destroying",
+    "один": "alone",
+    "одна": "alone",
+    "дома один": "home alone",
+    "гости": "guests",
+    "поводок": "leash",
+    "гулять": "walk",
+    "машина": "car",
+    "поездка": "travel",
+    "клетка": "crate",
+    "ночью": "night",
+    "лоток": "litter box",
+    "писает": "urinating",
+    "не может пописать": "cannot urinate",
+    "тужится": "straining to urinate",
+    "кровь": "blood",
+    "рвота": "vomiting",
+    "понос": "diarrhea",
+    "боль": "pain",
+    "болит": "pain",
+    "хромает": "limping",
+    "дрожит": "trembling",
+    "судороги": "seizures",
+    "упал": "collapse",
+    "падает": "collapse",
+    "не ест": "not eating",
+    "не пьет": "not drinking",
+    "прячется": "hiding",
+    "царапает": "scratching",
+    "метит": "marking",
+    "тревога": "anxiety",
+    "тревожность": "anxiety",
 }
 
-LABEL_TRANSLATIONS_RU = {
-    "Chocolate": "Шоколад",
-    "Xylitol or sugar-free sweetener": "Ксилит или сахарозаменитель",
-    "Grapes or raisins": "Виноград или изюм",
-    "Onion, garlic, or chives": "Лук, чеснок или шнитт-лук",
-    "Macadamia nuts": "Орехи макадамия",
-    "Alcohol": "Алкоголь",
-    "Caffeine": "Кофеин",
-    "Raw dough or yeast dough": "Сырое или дрожжевое тесто",
-    "THC or cannabis edible": "Каннабис или THC-продукт",
-    "Human pain medicine": "Человеческое обезболивающее",
-    "Cooked bones or bone fragments": "Вареные кости или костные осколки",
-    "Corn cob or fruit pit": "Кукурузный початок или фруктовая косточка",
-    "Fatty or fried food": "Жирная или жареная еда",
-    "Dairy-heavy food": "Много молочных продуктов",
-    "Salty or heavily seasoned food": "Соленая или сильно приправленная еда",
-    "Sugary dessert": "Сладкий десерт",
-    "Spicy food": "Острая еда",
-    "Raw meat, fish, or egg": "Сырое мясо, рыба или яйцо",
-    "Avocado flesh": "Мякоть авокадо",
-    "Peanut butter": "Арахисовая паста",
-    "Plain cooked chicken": "Простая приготовленная курица",
-    "Plain cooked turkey": "Простая приготовленная индейка",
-    "Plain cooked egg": "Простое приготовленное яйцо",
-    "Plain pumpkin": "Простая тыква",
-    "Plain white rice": "Простой белый рис",
-    "Carrots or cucumber": "Морковь или огурец",
-    "Blueberries": "Черника или голубика",
-    "Commercial pet food or treats": "Готовый корм или лакомства для питомцев",
-}
-
-REASON_TRANSLATIONS_RU = {
-    "Chocolate can affect the heart and nervous system.": "Шоколад может влиять на сердце и нервную систему.",
-    "Xylitol can cause a dangerous blood sugar drop and liver injury in dogs.": "Ксилит может вызвать опасное падение сахара и повреждение печени у собак.",
-    "Grapes and raisins can cause severe kidney injury in some pets.": "Виноград и изюм могут вызывать тяжелое поражение почек у некоторых питомцев.",
-    "These ingredients can damage red blood cells and trigger anemia.": "Эти ингредиенты могут повреждать эритроциты и вызывать анемию.",
-    "Macadamias can cause weakness, tremors, and walking changes in dogs.": "Макадамия может вызывать слабость, тремор и нарушение походки у собак.",
-    "Alcohol can rapidly depress the nervous system.": "Алкоголь может быстро угнетать нервную систему.",
-    "Caffeine can overstimulate the heart and nervous system.": "Кофеин может чрезмерно стимулировать сердце и нервную систему.",
-    "Dough can expand in the stomach and also create alcohol as it ferments.": "Тесто может увеличиваться в желудке и выделять алкоголь при брожении.",
-    "Cannabis edibles can cause dangerous neurologic signs in pets.": "Продукты с каннабисом могут вызывать опасные неврологические симптомы у питомцев.",
-    "Many human pain relievers are dangerous or toxic for pets.": "Многие человеческие обезболивающие опасны или токсичны для питомцев.",
-    "Cooked bones can splinter and cause choking or internal injury.": "Вареные кости могут раскалываться и вызывать удушье или внутренние травмы.",
-    "Large hard items can lodge in the stomach or intestines.": "Крупные твердые предметы могут застрять в желудке или кишечнике.",
-    "Rich foods can trigger stomach upset and sometimes pancreatitis.": "Жирная и богатая еда может вызывать расстройство желудка и иногда панкреатит.",
-    "Many pets do not digest dairy well and can develop GI upset.": "Многие питомцы плохо переваривают молочные продукты и могут получить расстройство ЖКТ.",
-    "A lot of salt and seasoning can upset the stomach and stress sensitive pets.": "Избыток соли и приправ может раздражать желудок и хуже переноситься чувствительными питомцами.",
-    "Sugary desserts add little value and often hide richer or unsafe ingredients.": "Сладкие десерты не несут пользы и часто содержат более тяжелые или небезопасные ингредиенты.",
-    "Spicy foods can irritate the stomach and mouth.": "Острая еда может раздражать желудок и ротовую полость.",
-    "Raw foods can carry bacteria or parasites, especially for vulnerable pets.": "Сырые продукты могут содержать бактерии или паразитов, особенно опасные для уязвимых питомцев.",
-    "Small amounts of plain avocado flesh are not always an emergency, but it is rich and can upset the stomach.": "Небольшое количество чистой мякоти авокадо не всегда экстренная ситуация, но продукт жирный и может раздражать желудок.",
-    "Peanut butter may be okay, but the ingredient label must be checked for xylitol and excess sugar.": "Арахисовая паста иногда допустима, но нужно проверить состав на ксилит и избыток сахара.",
-    "Plain cooked chicken is often tolerated well in small portions.": "Простая приготовленная курица часто переносится хорошо в небольших порциях.",
-    "Lean unseasoned turkey is usually a safer protein choice.": "Нежирная индейка без приправ обычно безопаснее как белковый вариант.",
-    "Plain cooked egg can work as a small protein add-on when it is fully cooked and unseasoned.": "Простое полностью приготовленное яйцо без приправ может подойти как небольшая белковая добавка.",
-    "Plain pumpkin is commonly used in small amounts for gentle digestion support.": "Простая тыква часто используется в небольших количествах для мягкой поддержки пищеварения.",
-    "Plain rice is bland and usually low risk in modest portions.": "Простой рис мягкий для желудка и обычно имеет низкий риск в умеренных порциях.",
-    "These are low-fat snack options when served plain and bite-sized.": "Это нежирные варианты перекуса, если давать их без добавок и маленькими кусочками.",
-    "Blueberries are usually fine in small amounts for many pets.": "Голубика обычно допустима в небольших количествах для многих питомцев.",
-    "Commercial pet foods are made for pets and are generally the safer baseline choice.": "Готовые корма и лакомства для питомцев обычно безопаснее как базовый вариант.",
-    "A history of pancreatitis makes rich or greasy foods more risky.": "При панкреатите в анамнезе жирная и тяжелая еда становится более рискованной.",
-    "Kidney disease is a reason to be stricter with salty or heavily seasoned foods.": "При заболевании почек стоит строже относиться к соленой и сильно приправленной еде.",
-    "For diabetic pets, sugary foods are a poor fit even when they are not classic toxins.": "Для питомцев с диабетом сладкая еда нежелательна, даже если это не классический токсин.",
-    "The amount matters. Bigger portions create more risk than a tiny lick or crumb.": "Количество имеет значение. Большая порция несет больше риска, чем маленький lick или крошка.",
-    "Current symptoms already include emergency warning signs.": "Среди текущих симптомов уже есть тревожные экстренные признаки.",
-    "Current symptoms raise the level of concern above a routine treat question.": "Текущие симптомы делают ситуацию более серьезной, чем обычный вопрос про угощение.",
-}
-
-SYMPTOM_TRANSLATIONS_RU = {
-    "vomiting": "рвота",
-    "restlessness": "беспокойство",
-    "rapid heart rate": "частый пульс",
-    "tremors": "тремор",
-    "weakness": "слабость",
-    "collapse": "коллапс",
-    "seizures": "судороги",
-    "lethargy": "вялость",
-    "poor appetite": "плохой аппетит",
-    "increased thirst": "сильная жажда",
-    "pale gums": "бледные десны",
-    "fast breathing": "частое дыхание",
-    "stiffness": "скованность",
-    "stumbling": "шаткость",
-    "slow breathing": "замедленное дыхание",
-    "agitation": "возбуждение",
-    "panting": "частое дыхание с открытым ртом",
-    "bloating": "вздутие",
-    "retching": "позывы на рвоту",
-    "pain": "боль",
-    "dribbling urine": "подтекание мочи",
-    "stomach pain": "боль в животе",
-    "abdominal pain": "боль в животе",
-    "gagging": "рвотные позывы",
-    "trouble swallowing": "трудности с глотанием",
-    "diarrhea": "диарея",
-    "gas": "газы",
-    "stomach discomfort": "дискомфорт в животе",
-    "thirst": "жажда",
-    "drooling": "слюнотечение",
-    "pawing at mouth": "трение лапой по морде",
-    "fever": "температура",
-}
-
-ALTERNATIVE_TRANSLATIONS_RU = {
-    "plain cooked chicken or turkey": "простая приготовленная курица или индейка",
-    "a small spoon of plain pumpkin": "небольшая ложка простой тыквы",
-    "commercial cat treats with simple ingredients": "готовые кошачьи лакомства с простым составом",
-    "carrot slices or cucumber pieces": "кусочки моркови или огурца",
-    "commercial dog treats with short ingredient lists": "готовые собачьи лакомства с коротким составом",
-}
-
-VALUE_TRANSLATIONS_RU = {
-    "Lick or crumb": "лизок или крошка",
-    "Small bite": "маленький кусочек",
-    "Moderate portion": "средняя порция",
-    "Large portion": "большая порция",
-    "Within 30 minutes": "в течение 30 минут",
-    "30 minutes to 2 hours": "от 30 минут до 2 часов",
-    "2 to 6 hours ago": "2–6 часов назад",
-    "More than 6 hours ago": "больше 6 часов назад",
-}
-
-HIGH_RISK_RULES = [
-    {
-        "label": "Chocolate",
-        "keywords": ["chocolate", "cocoa", "cacao", "brownie", "chocolate chip", "nutella"],
-        "species": ["dog", "cat"],
-        "category": "toxin",
-        "why": "Chocolate can affect the heart and nervous system.",
-        "watch_for": ["vomiting", "restlessness", "rapid heart rate", "tremors"],
+WHEN_LABELS = {
+    "en": {
+        "home_alone": "home-alone moments",
+        "guests": "when people come over",
+        "walks": "on walks or near the front door",
+        "car": "during car rides",
+        "night": "at night",
+        "anytime": "across the day",
+        "litter_box": "around the litter box",
+        "mealtime": "around food or high-value items",
+        "new_home": "since a recent change",
     },
-    {
-        "label": "Xylitol or sugar-free sweetener",
-        "keywords": [
-            "xylitol",
-            "birch sugar",
-            "sugar free gum",
-            "sugar free candy",
-            "sugarless gum",
-            "sugarless candy",
-        ],
+    "ru": {
+        "home_alone": "когда остается один дома",
+        "guests": "когда приходят люди",
+        "walks": "на прогулках или у двери",
+        "car": "в машине",
+        "night": "ночью",
+        "anytime": "в течение дня",
+        "litter_box": "вокруг лотка",
+        "mealtime": "возле еды или ценных вещей",
+        "new_home": "после недавних перемен",
+    },
+}
+
+INTENSITY_LABELS = {
+    "en": {"low": "mild", "medium": "moderate", "high": "high"},
+    "ru": {"low": "мягкая", "medium": "средняя", "high": "высокая"},
+}
+
+DURATION_LABELS = {
+    "en": {
+        "sudden": "sudden change",
+        "days": "last few days",
+        "weeks": "last few weeks",
+        "months": "ongoing for a while",
+    },
+    "ru": {
+        "sudden": "резкое изменение",
+        "days": "последние дни",
+        "weeks": "последние недели",
+        "months": "давно продолжается",
+    },
+}
+
+CONDITION_LABELS = {
+    "en": {
+        "recent_adoption": "recent adoption",
+        "rescue_history": "rescue or unknown history",
+        "senior_pet": "senior pet",
+        "pain_or_mobility": "pain or mobility concerns",
+        "noise_sensitivity": "noise sensitivity",
+        "multi_pet_home": "multi-pet home",
+    },
+    "ru": {
+        "recent_adoption": "недавнее появление в доме",
+        "rescue_history": "питомец из приюта или с неизвестной историей",
+        "senior_pet": "пожилой питомец",
+        "pain_or_mobility": "есть боль или сложности с подвижностью",
+        "noise_sensitivity": "чувствительность к шуму",
+        "multi_pet_home": "в доме несколько питомцев",
+    },
+}
+
+BADGE_LABELS = {
+    "en": {
+        "safe": "Light Coaching",
+        "caution": "Needs Structure",
+        "priority": "Priority Support",
+        "avoid": "Vet-First",
+    },
+    "ru": {
+        "safe": "Спокойный коучинг",
+        "caution": "Нужна структура",
+        "priority": "Нужна поддержка",
+        "avoid": "Сначала к ветеринару",
+    },
+}
+
+CONFIDENCE_LABELS = {
+    "en": {1: "Starting point", 2: "Moderate confidence", 3: "High confidence"},
+    "ru": {1: "Стартовая оценка", 2: "Средняя уверенность", 3: "Высокая уверенность"},
+}
+
+PRODUCT_LIBRARY = {
+    "lick_mat": {
+        "title": {"en": "Lick mat", "ru": "Лизательный коврик"},
+        "why": {
+            "en": "Useful for short calm reps, departure practice, and decompression.",
+            "ru": "Помогает в спокойных коротких упражнениях, тренировке ухода хозяина и расслаблении.",
+        },
+        "query": {"dog": "dog lick mat", "cat": "cat lick mat"},
+    },
+    "snuffle_mat": {
+        "title": {"en": "Snuffle mat", "ru": "Нюхательный коврик"},
+        "why": {
+            "en": "Turns part of the meal into a slow nose job instead of restless pacing.",
+            "ru": "Превращает часть кормления в спокойную работу носом вместо беспокойного хождения.",
+        },
+        "query": {"dog": "dog snuffle mat", "cat": "cat snuffle mat"},
+    },
+    "front_clip_harness": {
+        "title": {"en": "Front-clip harness", "ru": "Шлейка с передним креплением"},
+        "why": {
+            "en": "Helps lower pulling pressure while you teach calmer walk mechanics.",
+            "ru": "Снижает силу рывков, пока вы обучаете более спокойной прогулке.",
+        },
+        "query": {"dog": "front clip dog harness", "cat": "escape proof cat harness"},
+    },
+    "long_line": {
+        "title": {"en": "Long line", "ru": "Длинный поводок"},
+        "why": {
+            "en": "Good for decompression walks and distance from triggers.",
+            "ru": "Подходит для спокойных прогулок и увеличения дистанции от триггеров.",
+        },
+        "query": {"dog": "long line dog leash", "cat": "long line pet leash"},
+    },
+    "treat_pouch": {
+        "title": {"en": "Treat pouch", "ru": "Поясная сумка для лакомств"},
+        "why": {
+            "en": "Makes fast reinforcement easier when you catch the calm moment.",
+            "ru": "Позволяет быстро подкреплять спокойное поведение в нужный момент.",
+        },
+        "query": {"dog": "dog treat pouch", "cat": "pet treat pouch"},
+    },
+    "crate_cover": {
+        "title": {"en": "Crate cover", "ru": "Чехол для клетки"},
+        "why": {
+            "en": "Can soften visual stimulation if the crate already feels safe enough.",
+            "ru": "Может уменьшить визуальную нагрузку, если сама клетка уже стала безопасным местом.",
+        },
+        "query": {"dog": "dog crate cover", "cat": "pet crate cover"},
+    },
+    "stuffed_toy": {
+        "title": {"en": "Stuffable enrichment toy", "ru": "Игрушка для наполнения едой"},
+        "why": {
+            "en": "Gives chewing and licking an appropriate outlet during hard moments.",
+            "ru": "Дает подходящий выход жеванию и облизыванию в напряженные моменты.",
+        },
+        "query": {"dog": "stuffable dog toy", "cat": "food puzzle cat toy"},
+    },
+    "baby_gate": {
+        "title": {"en": "Baby gate", "ru": "Защитная калитка"},
+        "why": {
+            "en": "Creates distance without turning every setup into a full isolation event.",
+            "ru": "Создает дистанцию без полной изоляции и помогает управлять ситуацией спокойнее.",
+        },
+        "query": {"dog": "baby gate for dogs", "cat": "pet gate indoor"},
+    },
+    "chew_bundle": {
+        "title": {"en": "Chew rotation", "ru": "Набор жевательных вещей"},
+        "why": {
+            "en": "Helpful when chewing is part of stress release or puppy/adolescent energy.",
+            "ru": "Полезно, когда жевание связано со снятием стресса или возрастной энергией.",
+        },
+        "query": {"dog": "dog chew toy bundle", "cat": "cat chew toy pack"},
+    },
+    "seat_belt_harness": {
+        "title": {"en": "Travel harness or secure carrier", "ru": "Дорожная шлейка или надежная переноска"},
+        "why": {
+            "en": "Better stability often lowers panic in the car.",
+            "ru": "Лучшая фиксация часто снижает тревогу в машине.",
+        },
+        "query": {"dog": "dog car harness", "cat": "cat travel carrier"},
+    },
+    "white_noise": {
+        "title": {"en": "White noise machine", "ru": "Генератор белого шума"},
+        "why": {
+            "en": "Useful for sound-sensitive pets and bedtime settling.",
+            "ru": "Полезен для питомцев, чувствительных к шуму, и для вечернего успокоения.",
+        },
+        "query": {"dog": "white noise machine pet", "cat": "white noise machine pet"},
+    },
+    "camera": {
+        "title": {"en": "Pet camera", "ru": "Камера для питомца"},
+        "why": {
+            "en": "Shows the exact second the behavior starts so the plan can be more precise.",
+            "ru": "Помогает увидеть момент старта проблемы и точнее настроить план.",
+        },
+        "query": {"dog": "pet camera two way audio", "cat": "pet camera indoor"},
+    },
+    "cat_tree": {
+        "title": {"en": "Tall cat tree", "ru": "Высокое кошачье дерево"},
+        "why": {
+            "en": "Vertical space helps many cats feel safer before they feel social.",
+            "ru": "Вертикальное пространство помогает кошкам чувствовать себя в безопасности до того, как они станут более социальными.",
+        },
+        "query": {"dog": "small pet perch", "cat": "tall cat tree"},
+    },
+    "vertical_scratcher": {
+        "title": {"en": "Vertical scratcher", "ru": "Вертикальная когтеточка"},
+        "why": {
+            "en": "Gives scratching a legal outlet close to the spots already being targeted.",
+            "ru": "Дает легальную точку для царапания рядом с теми местами, которые уже выбраны питомцем.",
+        },
+        "query": {"dog": "pet scratch pad", "cat": "vertical cat scratcher"},
+    },
+    "extra_litter_box": {
+        "title": {"en": "Extra litter box", "ru": "Дополнительный лоток"},
+        "why": {
+            "en": "For cats, more easy-to-reach boxes often lowers conflict fast.",
+            "ru": "Для кошек дополнительный доступный лоток часто быстро снижает напряжение.",
+        },
+        "query": {"dog": "pet potty tray", "cat": "cat litter box large"},
+    },
+    "unscented_litter": {
+        "title": {"en": "Unscented litter", "ru": "Лоточный наполнитель без запаха"},
+        "why": {
+            "en": "A simple litter change can help if the current box setup feels aversive.",
+            "ru": "Иногда достаточно сменить наполнитель, если текущий вариант неприятен кошке.",
+        },
+        "query": {"dog": "pet litter tray", "cat": "unscented clumping cat litter"},
+    },
+    "enzymatic_cleaner": {
+        "title": {"en": "Enzymatic cleaner", "ru": "Энзимный очиститель"},
+        "why": {
+            "en": "Helps remove residual odor so the same spot is less likely to attract repeats.",
+            "ru": "Помогает убрать остаточный запах и уменьшить шанс повторения в том же месте.",
+        },
+        "query": {"dog": "enzymatic pet cleaner", "cat": "enzymatic pet cleaner"},
+    },
+    "covered_bed": {
+        "title": {"en": "Covered retreat bed", "ru": "Закрытый лежак-убежище"},
+        "why": {
+            "en": "A semi-hidden safe spot can help shy pets recover faster after stress.",
+            "ru": "Полузакрытое безопасное место помогает пугливым питомцам быстрее восстанавливаться после стресса.",
+        },
+        "query": {"dog": "covered dog bed calming", "cat": "covered cat bed"},
+    },
+    "pheromone_diffuser": {
+        "title": {"en": "Pheromone diffuser", "ru": "Феромонный диффузор"},
+        "why": {
+            "en": "Can support a calmer baseline, especially during transitions or tension at home.",
+            "ru": "Может поддерживать более спокойный фон, особенно во время перемен и домашнего напряжения.",
+        },
+        "query": {"dog": "dog calming diffuser", "cat": "cat pheromone diffuser"},
+    },
+}
+
+ISSUE_LIBRARY = {
+    "not_sure": {
+        "species": ["dog", "cat"],
+        "label": {"en": "Not sure yet", "ru": "Пока не уверен"},
+        "pattern": {"en": "Behavior pattern needs narrowing", "ru": "Нужно уточнить поведенческий паттерн"},
+        "summary": {
+            "en": "This sounds real, but it is still broad. The fastest win is to shrink the moment, observe what happens right before it, and stop treating it like a character flaw.",
+            "ru": "Проблема звучит реально, но пока слишком широко. Самый быстрый шаг — сузить момент, посмотреть, что происходит прямо перед ним, и не считать это «характером».",
+        },
+        "drivers": {
+            "en": [
+                "The behavior may be part stress, part habit, and part unmet outlet.",
+                "Without a clear trigger, pets often look stubborn when they are actually overloaded.",
+            ],
+            "ru": [
+                "Поведение может быть смесью стресса, привычки и нехватки подходящего выхода энергии.",
+                "Когда триггер неясен, питомец выглядит упрямым, хотя на деле он просто перегружен.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Notice what happens in the 60 seconds right before the problem starts.",
+                "Reduce the difficulty of that moment instead of repeating the same failing setup.",
+                "Reward the first calmer choice, even if it lasts only a second or two.",
+            ],
+            "ru": [
+                "Заметь, что происходит за 60 секунд до старта проблемы.",
+                "Сделай этот момент проще вместо повторения той же неудачной ситуации.",
+                "Подкрепляй первый более спокойный выбор, даже если он длится всего секунду-две.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Track time, trigger, intensity, and recovery for one week.",
+                "Look for a repeatable pattern before changing too many things at once.",
+                "Keep routines predictable so stress has fewer surprise spikes.",
+            ],
+            "ru": [
+                "В течение недели отмечай время, триггер, силу реакции и скорость восстановления.",
+                "Сначала найди повторяющийся паттерн, а не меняй сразу все подряд.",
+                "Сделай рутину предсказуемой, чтобы было меньше резких всплесков стресса.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "Get veterinary input if the change is sudden, intense, or paired with appetite, sleep, or mobility changes.",
+            ],
+            "ru": [
+                "Подключай ветеринара, если изменение резкое, сильное или сопровождается изменением аппетита, сна или подвижности.",
+            ],
+        },
+        "toolkit": {"dog": ["snuffle_mat", "camera", "white_noise"], "cat": ["cat_tree", "covered_bed", "pheromone_diffuser"]},
+    },
+    "general_anxiety": {
+        "species": ["dog", "cat"],
+        "label": {"en": "General anxiety", "ru": "Общая тревожность"},
+        "pattern": {"en": "General stress load", "ru": "Общий повышенный стресс"},
+        "summary": {
+            "en": "This looks less like disobedience and more like a nervous system that stays switched on too easily.",
+            "ru": "Это больше похоже не на непослушание, а на нервную систему, которая слишком легко остается в режиме напряжения.",
+        },
+        "drivers": {
+            "en": [
+                "Unclear routines and constant stimulation can keep arousal elevated.",
+                "Stress often stacks: noise, lack of rest, change, and anticipation all add up.",
+            ],
+            "ru": [
+                "Непонятная рутина и постоянная стимуляция могут держать уровень возбуждения слишком высоким.",
+                "Стресс часто складывается из нескольких слоев: шум, недосып, перемены и ожидание.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Lower novelty for the next 24 hours and make the day more predictable.",
+                "Use short sniffing, licking, or foraging tasks instead of more excitement.",
+                "Protect one quiet recovery block with no drilling or pressure.",
+            ],
+            "ru": [
+                "На ближайшие сутки снизь количество нового и сделай день более предсказуемым.",
+                "Используй короткие задания на нюхание, облизывание или поиск еды вместо лишнего возбуждения.",
+                "Дай один спокойный блок восстановления без давления и тренировочной суеты.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Keep wake-up, meals, walks, and rest windows on a steadier schedule.",
+                "Measure progress by faster recovery, not by instant perfection.",
+                "Build calm in tiny reps before asking for hard social situations.",
+            ],
+            "ru": [
+                "Сделай более стабильными подъем, еду, прогулки и периоды отдыха.",
+                "Оцени прогресс по более быстрому восстановлению, а не по мгновенному идеалу.",
+                "Сначала тренируй спокойствие маленькими подходами, а потом уже сложные социальные ситуации.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "Talk to your vet if anxiety suddenly intensified or started alongside pain, GI upset, or sleep disruption.",
+            ],
+            "ru": [
+                "Обсуди с ветеринаром, если тревожность резко усилилась или совпала с болью, ЖКТ-проблемами или нарушением сна.",
+            ],
+        },
+        "toolkit": {"dog": ["lick_mat", "snuffle_mat", "white_noise"], "cat": ["covered_bed", "cat_tree", "pheromone_diffuser"]},
+    },
+    "separation_anxiety": {
+        "species": ["dog", "cat"],
+        "label": {"en": "Separation anxiety", "ru": "Тревога разлуки"},
+        "pattern": {"en": "Separation distress", "ru": "Тревога разлуки"},
+        "summary": {
+            "en": "This looks like absence-related distress. The goal is to make departures smaller and more boring, not to force the pet to “just deal with it.”",
+            "ru": "Это похоже на стресс, связанный с отсутствием человека. Цель — сделать уходы короче и скучнее, а не заставлять питомца «терпеть».",
+        },
+        "drivers": {
+            "en": [
+                "Departure cues can become a trigger long before the human actually leaves.",
+                "Once panic starts, the learning part shuts down and the pet practices distress instead.",
+            ],
+            "ru": [
+                "Триггером могут стать уже сами сигналы ухода еще до реального выхода человека.",
+                "Когда начинается паника, обучение выключается, и питомец только закрепляет тревогу.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Break your leaving routine into tiny pieces and practice the earliest cues calmly.",
+                "Keep absences below the point where full panic starts whenever possible.",
+                "Use a calm food project only if the pet can actually stay under threshold with it.",
+            ],
+            "ru": [
+                "Разбей рутину ухода на маленькие части и отдельно потренируй самые ранние сигналы спокойно.",
+                "По возможности не доводи отсутствие до уровня полной паники.",
+                "Используй спокойный пищевой проект только если он действительно помогает питомцу оставаться ниже порога.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Practice very short departures many times rather than a few hard absences.",
+                "Track the first signs of stress so you know the real starting point.",
+                "Aim for a smoother departure arc before adding duration.",
+            ],
+            "ru": [
+                "Тренируй много очень коротких уходов вместо нескольких тяжелых длинных отсутствий.",
+                "Отмечай самый первый признак стресса, чтобы понимать реальную стартовую точку.",
+                "Сначала добейся более гладкого ухода, а уже потом добавляй длительность.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "Consider a vet or credentialed behavior professional if panic escalates fast, self-injury appears, or progress stalls.",
+            ],
+            "ru": [
+                "Подключай ветеринара или квалифицированного специалиста по поведению, если паника быстро нарастает, появляется самоповреждение или нет прогресса.",
+            ],
+        },
+        "toolkit": {"dog": ["lick_mat", "camera", "white_noise"], "cat": ["covered_bed", "pheromone_diffuser", "camera"]},
+    },
+    "barking_reactivity": {
         "species": ["dog"],
-        "category": "toxin",
-        "why": "Xylitol can cause a dangerous blood sugar drop and liver injury in dogs.",
-        "watch_for": ["weakness", "vomiting", "collapse", "seizures"],
+        "label": {"en": "Barking or reactivity", "ru": "Лай и реактивность"},
+        "pattern": {"en": "Trigger-based arousal", "ru": "Реакция на триггеры"},
+        "summary": {
+            "en": "This looks like a threshold problem, not a respect problem. Distance and better timing usually help more than correction.",
+            "ru": "Это больше похоже на проблему порога, а не на «неуважение». Дистанция и хороший тайминг обычно помогают лучше, чем коррекция.",
+        },
+        "drivers": {
+            "en": [
+                "The trigger may be arriving too fast or too close for the pet to stay thoughtful.",
+                "Repeated blowups can build an expectation of conflict before the trigger even appears.",
+            ],
+            "ru": [
+                "Триггер может оказываться слишком близко или слишком резко, чтобы питомец мог оставаться в спокойном обучаемом состоянии.",
+                "Повторяющиеся срывы формируют ожидание конфликта еще до появления триггера.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Give more distance from the trigger than you think you need.",
+                "Reinforce orientation back to you before the barking spiral starts.",
+                "Use shorter outings if that keeps the dog under threshold.",
+            ],
+            "ru": [
+                "Давай больше дистанции до триггера, чем кажется нужным.",
+                "Подкрепляй поворот внимания к тебе до того, как лай успеет раскрутиться.",
+                "Если так проще держать собаку ниже порога, сокращай прогулки.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Choose easier routes and repeat successful distances before making things harder.",
+                "Count recoveries, not explosions alone.",
+                "Pair predictable triggers with calm food or movement patterns before they get too close.",
+            ],
+            "ru": [
+                "Выбирай более легкие маршруты и повторяй удачные дистанции до усложнения.",
+                "Считай не только срывы, но и скорость восстановления.",
+                "Связывай предсказуемые триггеры со спокойными паттернами еды или движения до слишком близкого подхода.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "Seek professional help faster if growling, lunging, or bite risk is climbing.",
+            ],
+            "ru": [
+                "Быстрее подключай специалиста, если растут рычание, выпады или риск укуса.",
+            ],
+        },
+        "toolkit": {"dog": ["front_clip_harness", "long_line", "treat_pouch"]},
     },
-    {
-        "label": "Grapes or raisins",
-        "keywords": ["grape", "grapes", "raisin", "raisins", "currant", "currants"],
-        "species": ["dog", "cat"],
-        "category": "toxin",
-        "why": "Grapes and raisins can cause severe kidney injury in some pets.",
-        "watch_for": ["vomiting", "lethargy", "poor appetite", "increased thirst"],
-    },
-    {
-        "label": "Onion, garlic, or chives",
-        "keywords": [
-            "onion",
-            "onion powder",
-            "garlic",
-            "garlic powder",
-            "chive",
-            "chives",
-            "leek",
-            "shallot",
-        ],
-        "species": ["dog", "cat"],
-        "category": "toxin",
-        "why": "These ingredients can damage red blood cells and trigger anemia.",
-        "watch_for": ["vomiting", "weakness", "pale gums", "fast breathing"],
-    },
-    {
-        "label": "Macadamia nuts",
-        "keywords": ["macadamia", "macadamia nuts"],
+    "leash_pulling": {
         "species": ["dog"],
-        "category": "toxin",
-        "why": "Macadamias can cause weakness, tremors, and walking changes in dogs.",
-        "watch_for": ["weakness", "tremors", "vomiting", "stiffness"],
+        "label": {"en": "Leash pulling", "ru": "Тянет поводок"},
+        "pattern": {"en": "Over-aroused walking pattern", "ru": "Перевозбужденный паттерн прогулки"},
+        "summary": {
+            "en": "This usually improves when the walk becomes clearer and more decompression-focused, not when every step becomes a battle.",
+            "ru": "Обычно это улучшается, когда прогулка становится понятнее и спокойнее, а не когда каждый шаг превращается в борьбу.",
+        },
+        "drivers": {
+            "en": [
+                "Fast forward motion can become its own reward and make pulling self-reinforcing.",
+                "If the dog starts the walk already excited, loose leash skills disappear quickly.",
+            ],
+            "ru": [
+                "Быстрое движение вперед само по себе становится наградой и закрепляет натяжение.",
+                "Если собака выходит на прогулку уже перевозбужденной, навык свободного поводка быстро пропадает.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Start with one calmer decompression minute before asking for precision.",
+                "Reward the leash slack moment, not the perfect heel picture.",
+                "Shorten the session if frustration rises for both of you.",
+            ],
+            "ru": [
+                "Начинай с минуты спокойной декомпрессии перед более точной работой.",
+                "Подкрепляй момент свободного поводка, а не идеальную картинку рядом.",
+                "Сокращай прогулку, если фрустрация растет у обоих.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Train in easier environments before expecting the skill on stimulating routes.",
+                "Use more sniff breaks so the dog is not fighting the walk the whole time.",
+                "Measure progress in more loose steps, not perfect whole walks.",
+            ],
+            "ru": [
+                "Сначала тренируйся в простых местах, а потом уже ожидай навык на сложных маршрутах.",
+                "Добавляй больше пауз на нюхание, чтобы собака не боролась с прогулкой все время.",
+                "Измеряй прогресс по количеству свободных шагов, а не по идеальной прогулке целиком.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "If pulling changed suddenly, check for pain, harness fit, and paw discomfort before assuming a training issue.",
+            ],
+            "ru": [
+                "Если натяжение началось резко, сначала проверь боль, посадку шлейки и дискомфорт в лапах, а не считай это только вопросом тренировки.",
+            ],
+        },
+        "toolkit": {"dog": ["front_clip_harness", "long_line", "treat_pouch"]},
     },
-    {
-        "label": "Alcohol",
-        "keywords": ["alcohol", "beer", "wine", "vodka", "whiskey", "rum", "liqueur"],
+    "crate_resistance": {
+        "species": ["dog"],
+        "label": {"en": "Crate resistance", "ru": "Сопротивление клетке"},
+        "pattern": {"en": "Confinement stress", "ru": "Стресс из-за ограничения пространства"},
+        "summary": {
+            "en": "The crate should feel like a good prediction, not just a place where hard feelings happen.",
+            "ru": "Клетка должна предсказывать что-то хорошее, а не быть местом, где регулярно случается стресс.",
+        },
+        "drivers": {
+            "en": [
+                "If the crate mostly predicts isolation or frustration, resistance grows quickly.",
+                "Some dogs need more gradual entry and shorter duration than people expect.",
+            ],
+            "ru": [
+                "Если клетка в основном предсказывает изоляцию или фрустрацию, сопротивление быстро усиливается.",
+                "Некоторым собакам нужен более плавный вход и гораздо меньшая длительность, чем кажется людям.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Feed or scatter easy wins near the crate before asking for full entry.",
+                "Practice tiny in-and-out reps with the door open first.",
+                "Do not jump straight to long closed-door sessions if the picture is already emotional.",
+            ],
+            "ru": [
+                "Давай еду или простые подкрепления рядом с клеткой до просьбы зайти полностью.",
+                "Сначала делай очень короткие заходы и выходы с открытой дверцей.",
+                "Не переходи сразу к долгим закрытым сессиям, если картинка уже эмоциональная.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Build entry, settle, and duration as separate pieces.",
+                "Repeat success at the easy level before changing two variables at once.",
+                "Keep at least some crate reps unrelated to you leaving.",
+            ],
+            "ru": [
+                "Собирай вход, расслабление и длительность как отдельные части.",
+                "Повторяй успех на легком уровне, прежде чем менять сразу два параметра.",
+                "Пусть часть занятий с клеткой вообще не связана с твоим уходом.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "If vocalizing is extreme, the crate causes injury, or panic ramps fast, get behavior support instead of pushing through.",
+            ],
+            "ru": [
+                "Если вокализация сильная, есть риск травмы в клетке или паника быстро растет, подключай поведенческую помощь вместо продавливания.",
+            ],
+        },
+        "toolkit": {"dog": ["crate_cover", "stuffed_toy", "baby_gate"]},
+    },
+    "chewing_biting": {
         "species": ["dog", "cat"],
-        "category": "toxin",
-        "why": "Alcohol can rapidly depress the nervous system.",
-        "watch_for": ["stumbling", "vomiting", "slow breathing", "collapse"],
+        "label": {"en": "Chewing or biting", "ru": "Грызет или кусает"},
+        "pattern": {"en": "Outlet and arousal mismatch", "ru": "Не хватает подходящего выхода энергии"},
+        "summary": {
+            "en": "This often improves when the pet gets a better legal outlet and the hard moments are managed earlier.",
+            "ru": "Часто это улучшается, когда у питомца появляется лучший легальный выход энергии, а сложные моменты управляются раньше.",
+        },
+        "drivers": {
+            "en": [
+                "Chewing and mouthing can rise with stress, teething, boredom, or overtiredness.",
+                "If the environment keeps presenting tempting targets, rehearsal stays strong.",
+            ],
+            "ru": [
+                "Жевание и кусание усиливаются из-за стресса, смены зубов, скуки или переутомления.",
+                "Если среда постоянно подбрасывает соблазнительные цели, привычка только закрепляется.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Block access to the highest-value problem items for now.",
+                "Offer an easier legal chew or toy before the usual hot moments.",
+                "Redirect early and calmly instead of waiting for full chaos.",
+            ],
+            "ru": [
+                "Пока закрой доступ к самым проблемным предметам.",
+                "Предлагай разрешенный жевательный предмет заранее, до привычных горячих моментов.",
+                "Перенаправляй спокойно и рано, а не когда уже начался хаос.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Rotate legal outlets so they stay interesting.",
+                "Notice patterns: tired, overexcited, alone, or after play can all mean different plans.",
+                "Reward disengagement from forbidden items whenever you catch it.",
+            ],
+            "ru": [
+                "Чередуй разрешенные предметы, чтобы они не наскучивали.",
+                "Смотри на паттерны: усталость, перевозбуждение, одиночество или момент после игры требуют разных решений.",
+                "Подкрепляй любое самостоятельное отвлечение от запретных вещей, когда успеваешь его заметить.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "Get vet input if mouthing or biting rose suddenly with pain signs, GI issues, or major sleep changes.",
+            ],
+            "ru": [
+                "Иди к ветеринару, если кусание резко усилилось на фоне боли, ЖКТ-проблем или сильных изменений сна.",
+            ],
+        },
+        "toolkit": {"dog": ["chew_bundle", "stuffed_toy", "baby_gate"], "cat": ["vertical_scratcher", "cat_tree", "covered_bed"]},
     },
-    {
-        "label": "Caffeine",
-        "keywords": ["coffee", "espresso", "caffeine", "energy drink", "tea", "matcha"],
+    "car_travel": {
         "species": ["dog", "cat"],
-        "category": "toxin",
-        "why": "Caffeine can overstimulate the heart and nervous system.",
-        "watch_for": ["agitation", "rapid heart rate", "tremors", "panting"],
+        "label": {"en": "Car or travel stress", "ru": "Тревога в машине или поездке"},
+        "pattern": {"en": "Travel stress response", "ru": "Стресс от поездки"},
+        "summary": {
+            "en": "Travel stress usually improves when motion, confinement, and prediction are trained in smaller pieces.",
+            "ru": "Стресс от поездок обычно уменьшается, когда движение, ограничение и предсказуемость тренируются маленькими частями.",
+        },
+        "drivers": {
+            "en": [
+                "Some pets react to motion itself, others to the setup around getting into the car.",
+                "If the car mostly predicts difficult destinations, resistance often starts before movement.",
+            ],
+            "ru": [
+                "Одни питомцы реагируют на само движение, другие — уже на подготовку и посадку в машину.",
+                "Если машина в основном предсказывает неприятные поездки, сопротивление начинается еще до движения.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Practice sitting in the parked car without going anywhere.",
+                "Shorten the setup so the pet enters, settles, and exits before stress spikes.",
+                "Use secure support rather than loose movement in the vehicle.",
+            ],
+            "ru": [
+                "Потренируйся просто сидеть в припаркованной машине без поездки.",
+                "Сократи упражнение так, чтобы питомец успел зайти, успокоиться и выйти до пика стресса.",
+                "Используй надежную фиксацию, а не свободное перемещение в салоне.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Train entry, stillness, engine-on, and short movement as separate layers.",
+                "Finish on easy reps instead of only doing full hard drives.",
+                "Watch whether nausea, fear, or frustration seems to be the bigger piece.",
+            ],
+            "ru": [
+                "Раздели вход, спокойное сидение, включенный двигатель и короткое движение на отдельные слои.",
+                "Заканчивай на легких повторах, а не только на полноценных тяжелых поездках.",
+                "Понаблюдай, что сильнее: тошнота, страх или фрустрация.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "If drooling, vomiting, or panic are severe, ask your vet about motion sickness and supportive medication options.",
+            ],
+            "ru": [
+                "Если сильны слюнотечение, рвота или паника, обсуди с ветеринаром укачивание и возможную поддерживающую медикаментозную помощь.",
+            ],
+        },
+        "toolkit": {"dog": ["seat_belt_harness", "covered_bed", "white_noise"], "cat": ["seat_belt_harness", "covered_bed", "pheromone_diffuser"]},
     },
-    {
-        "label": "Raw dough or yeast dough",
-        "keywords": ["raw dough", "yeast dough", "pizza dough", "bread dough"],
+    "night_restlessness": {
         "species": ["dog", "cat"],
-        "category": "toxin",
-        "why": "Dough can expand in the stomach and also create alcohol as it ferments.",
-        "watch_for": ["bloating", "retching", "pain", "weakness"],
+        "label": {"en": "Night restlessness", "ru": "Ночное беспокойство"},
+        "pattern": {"en": "Night settling difficulty", "ru": "Сложности с успокоением ночью"},
+        "summary": {
+            "en": "Night issues often come from the whole day picture: too little recovery, too much late stimulation, or a medical piece that needs ruling out.",
+            "ru": "Ночные проблемы часто идут от общей картины дня: мало восстановления, слишком много стимуляции вечером или медицинский фактор, который нужно исключить.",
+        },
+        "drivers": {
+            "en": [
+                "Overtired pets can look more wired, not more sleepy.",
+                "Late activity, hunger, sound sensitivity, or discomfort can all show up most clearly at night.",
+            ],
+            "ru": [
+                "Переутомленный питомец часто выглядит не сонным, а еще более заведенным.",
+                "Поздняя активность, голод, чувствительность к звукам или дискомфорт часто сильнее проявляются именно ночью.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Protect a calmer last hour before bedtime.",
+                "Use a low-key enrichment or food task earlier in the evening, not right at lights out.",
+                "Make the sleeping setup easier, darker, and quieter tonight.",
+            ],
+            "ru": [
+                "Сделай последний час перед сном спокойнее.",
+                "Дай тихое задание или спокойную еду раньше вечером, а не прямо перед выключением света.",
+                "Сделай место для сна проще, темнее и тише уже сегодня.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Look at the whole daily rhythm: naps, movement, meals, and late stimulation.",
+                "Keep bedtime cues consistent so the nervous system gets a predictable shutdown signal.",
+                "Track whether the issue is waking, pacing, vocalizing, or early-morning start time.",
+            ],
+            "ru": [
+                "Посмотри на весь дневной ритм: сон, движение, еду и позднюю стимуляцию.",
+                "Сделай сигналы ко сну стабильными, чтобы нервная система получала понятный сигнал на завершение дня.",
+                "Отмечай, в чем именно проблема: пробуждение, хождение, вокализация или слишком ранний подъем.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "Talk to your vet sooner if night changes are sudden, the pet seems painful, or a senior pet starts pacing or vocalizing more.",
+            ],
+            "ru": [
+                "Быстрее говори с ветеринаром, если ночные изменения начались резко, питомцу больно или пожилой питомец стал больше ходить и вокализировать ночью.",
+            ],
+        },
+        "toolkit": {"dog": ["white_noise", "covered_bed", "lick_mat"], "cat": ["white_noise", "covered_bed", "cat_tree"]},
     },
-    {
-        "label": "THC or cannabis edible",
-        "keywords": ["cannabis", "marijuana", "thc", "edible", "weed gummy"],
+    "new_pet_adjustment": {
         "species": ["dog", "cat"],
-        "category": "toxin",
-        "why": "Cannabis edibles can cause dangerous neurologic signs in pets.",
-        "watch_for": ["stumbling", "dribbling urine", "lethargy", "tremors"],
+        "label": {"en": "New pet adjustment", "ru": "Адаптация нового питомца"},
+        "pattern": {"en": "Transition stress", "ru": "Стресс адаптации"},
+        "summary": {
+            "en": "A new home often looks messy before it looks settled. The main job is safety, predictability, and gentle information gathering.",
+            "ru": "Новый дом почти всегда сначала выглядит хаотично, а уже потом стабильным. Главная задача — безопасность, предсказуемость и мягкий сбор информации.",
+        },
+        "drivers": {
+            "en": [
+                "The pet is still learning what the home, humans, and routines mean.",
+                "Too much freedom or too much pressure too early can both slow adjustment.",
+            ],
+            "ru": [
+                "Питомец все еще понимает, что означают новый дом, люди и рутина.",
+                "Слишком много свободы или слишком много давления слишком рано одинаково тормозят адаптацию.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Shrink the world and keep only the easiest successful spaces open.",
+                "Use steady meal, potty, play, and rest anchors today.",
+                "Let observation matter more than performance for now.",
+            ],
+            "ru": [
+                "Уменьши пространство и оставь открытыми только самые простые и успешные зоны.",
+                "Сделай сегодня стабильными точки опоры: еда, туалет, игра и отдых.",
+                "Пока наблюдение важнее, чем «идеальное поведение».",
+            ],
+        },
+        "week": {
+            "en": [
+                "Expand freedom slowly as the pet starts making calmer choices.",
+                "Keep social and training asks short and easy.",
+                "Track which rooms, times, and people feel easiest versus hardest.",
+            ],
+            "ru": [
+                "Расширяй свободу постепенно, когда питомец начнет делать более спокойные выборы.",
+                "Делай социальные и тренировочные запросы короткими и легкими.",
+                "Отмечай, какие комнаты, время и люди даются легче, а какие тяжелее.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "Get vet support if appetite, sleep, or elimination is not stabilizing or if the pet seems shut down for days.",
+            ],
+            "ru": [
+                "Подключай ветеринара, если не выравниваются аппетит, сон или туалет, либо питомец остается «выключенным» много дней.",
+            ],
+        },
+        "toolkit": {"dog": ["baby_gate", "covered_bed", "lick_mat"], "cat": ["covered_bed", "cat_tree", "pheromone_diffuser"]},
     },
-    {
-        "label": "Human pain medicine",
-        "keywords": ["ibuprofen", "acetaminophen", "tylenol", "advil", "naproxen", "aleve"],
-        "species": ["dog", "cat"],
-        "category": "toxin",
-        "why": "Many human pain relievers are dangerous or toxic for pets.",
-        "watch_for": ["vomiting", "stomach pain", "pale gums", "weakness"],
+    "cat_litter_box": {
+        "species": ["cat"],
+        "label": {"en": "Litter box issues", "ru": "Проблемы с лотком"},
+        "pattern": {"en": "Litter setup conflict", "ru": "Конфликт вокруг лотка"},
+        "summary": {
+            "en": "With litter box issues, behavior and medical questions overlap more than people think, so we stay calmer but we also move faster.",
+            "ru": "При проблемах с лотком поведение и медицинские причины пересекаются сильнее, чем кажется, поэтому здесь мы действуем спокойнее, но быстрее.",
+        },
+        "drivers": {
+            "en": [
+                "Location, box style, litter feel, cleanliness, and household tension all matter.",
+                "Cats often avoid a setup before they fully reject it, so subtle changes count.",
+            ],
+            "ru": [
+                "Важны место, тип лотка, фактура наполнителя, чистота и напряжение в доме.",
+                "Кошки часто начинают избегать систему раньше, чем полностью отказываются от нее, поэтому даже мелкие изменения значимы.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Add an extra easy-to-reach box today if possible.",
+                "Scoop more often and avoid strong scents or harsh cleaners on the box itself.",
+                "Keep conflict away from litter areas and do not punish accidents.",
+            ],
+            "ru": [
+                "По возможности добавь сегодня еще один доступный лоток.",
+                "Убирай чаще и избегай резких запахов или агрессивной чистки самого лотка.",
+                "Убери конфликт из зоны лотка и не наказывай за промахи.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Test one setup change at a time so you can see what helps.",
+                "Track exact location, timing, and posture of accidents if they continue.",
+                "Watch for patterns with other pets, noise, or blocked access.",
+            ],
+            "ru": [
+                "Меняй только один параметр за раз, чтобы понимать, что реально помогает.",
+                "Если проблема сохраняется, отмечай точное место, время и позу во время промахов.",
+                "Следи за связью с другими питомцами, шумом или трудным доступом.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "Any straining, tiny frequent trips, blood, pain, or sudden box avoidance deserves same-day veterinary attention.",
+            ],
+            "ru": [
+                "Любое сильное натуживание, частые маленькие попытки, кровь, боль или резкий отказ от лотка требуют ветеринара в тот же день.",
+            ],
+        },
+        "toolkit": {"cat": ["extra_litter_box", "unscented_litter", "enzymatic_cleaner"]},
     },
-    {
-        "label": "Cooked bones or bone fragments",
-        "keywords": ["cooked bone", "chicken bone", "turkey bone", "rib bone", "bone fragments"],
-        "species": ["dog", "cat"],
-        "category": "obstruction",
-        "why": "Cooked bones can splinter and cause choking or internal injury.",
-        "watch_for": ["gagging", "retching", "abdominal pain", "trouble swallowing"],
+    "cat_scratching": {
+        "species": ["cat"],
+        "label": {"en": "Furniture scratching", "ru": "Царапает мебель"},
+        "pattern": {"en": "Scratching outlet mismatch", "ru": "Неудачный выбор места для царапания"},
+        "summary": {
+            "en": "Scratching is normal cat behavior. The fix is usually placement, surface, and timing, not making the cat stop scratching entirely.",
+            "ru": "Царапание — нормальное кошачье поведение. Обычно нужно исправить место, поверхность и тайминг, а не пытаться полностью запретить царапание.",
+        },
+        "drivers": {
+            "en": [
+                "Cats scratch for body care, stretching, marking, and emotional regulation.",
+                "If the legal scratcher is in the wrong place or feels wrong, the sofa wins.",
+            ],
+            "ru": [
+                "Кошки царапают ради ухода за телом, растяжки, маркировки и эмоциональной разрядки.",
+                "Если разрешенная когтеточка стоит не там или ощущается не так, диван побеждает.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Put a scratcher directly next to the current target spot.",
+                "Test both vertical and horizontal options if you are not sure which surface the cat prefers.",
+                "Reward the first scratch on the legal item right away.",
+            ],
+            "ru": [
+                "Поставь когтеточку прямо рядом с текущей любимой целью.",
+                "Попробуй и вертикальный, и горизонтальный вариант, если пока неясно, какая поверхность нравится больше.",
+                "Сразу подкрепляй первый контакт с разрешенной когтеточкой.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Notice when scratching happens: after waking, after stress, or in social moments.",
+                "Make the legal option more obvious before the cat reaches the old target.",
+                "Protect the old spot temporarily while the new habit builds.",
+            ],
+            "ru": [
+                "Замечай, когда именно это происходит: после сна, после стресса или в социальные моменты.",
+                "Сделай разрешенный вариант более заметным до того, как кошка подойдет к старой цели.",
+                "Временно защити старое место, пока формируется новая привычка.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "If scratching is paired with overgrooming, pain, or major stress signs, look wider than a simple furniture issue.",
+            ],
+            "ru": [
+                "Если царапание сочетается с чрезмерным вылизыванием, болью или сильным стрессом, смотри шире, чем просто проблема мебели.",
+            ],
+        },
+        "toolkit": {"cat": ["vertical_scratcher", "cat_tree", "pheromone_diffuser"]},
     },
-    {
-        "label": "Corn cob or fruit pit",
-        "keywords": ["corn cob", "peach pit", "plum pit", "avocado pit", "cherry pit"],
-        "species": ["dog", "cat"],
-        "category": "obstruction",
-        "why": "Large hard items can lodge in the stomach or intestines.",
-        "watch_for": ["retching", "vomiting", "bloating", "pain"],
+    "cat_hiding": {
+        "species": ["cat"],
+        "label": {"en": "Cat hiding or withdrawal", "ru": "Кошка прячется"},
+        "pattern": {"en": "Withdrawal and safety seeking", "ru": "Уход в укрытие и поиск безопасности"},
+        "summary": {
+            "en": "Hiding is often a safety strategy. The plan is to make the environment safer before asking the cat to be social.",
+            "ru": "Прятаться — часто стратегия безопасности. План здесь в том, чтобы сначала сделать среду безопаснее, а уже потом ждать социальной открытости.",
+        },
+        "drivers": {
+            "en": [
+                "Cats may hide because the environment feels loud, exposed, unpredictable, or socially heavy.",
+                "A withdrawn cat often needs more control, not more pressure.",
+            ],
+            "ru": [
+                "Кошка может прятаться, если среда ощущается шумной, открытой, непредсказуемой или социально тяжелой.",
+                "Замкнутой кошке обычно нужно больше контроля, а не больше давления.",
+            ],
+        },
+        "today": {
+            "en": [
+                "Create safe vertical and covered options near, not inside, the scariest zones.",
+                "Let food and interaction come to the edge of safety, not beyond it.",
+                "Use a softer voice, slower body language, and fewer reaches tonight.",
+            ],
+            "ru": [
+                "Сделай безопасные вертикальные и закрытые точки рядом, но не внутри самых пугающих зон.",
+                "Пусть еда и взаимодействие доходят только до границы чувства безопасности, не дальше.",
+                "Используй более мягкий голос, медленные движения и меньше попыток тянуться к кошке.",
+            ],
+        },
+        "week": {
+            "en": [
+                "Measure progress by shorter hiding time and more curiosity at the edge.",
+                "Keep key resources spread out so the cat is not forced through conflict.",
+                "Let routine arrivals predict safety and quiet consistency.",
+            ],
+            "ru": [
+                "Оцени прогресс по более короткому времени прятанья и большей любопытности у границы.",
+                "Разнеси ключевые ресурсы так, чтобы кошка не была вынуждена проходить через конфликт.",
+                "Пусть твое появление в рутине предсказывает безопасность и спокойную стабильность.",
+            ],
+        },
+        "vet": {
+            "en": [
+                "If the cat is hiding more suddenly, not eating, or seems painful, rule out medical causes early.",
+            ],
+            "ru": [
+                "Если кошка стала резко больше прятаться, не ест или выглядит болезненной, рано исключай медицинские причины.",
+            ],
+        },
+        "toolkit": {"cat": ["covered_bed", "cat_tree", "pheromone_diffuser"]},
     },
-]
-
-CAUTION_RULES = [
-    {
-        "label": "Fatty or fried food",
-        "keywords": [
-            "bacon",
-            "sausage",
-            "fried chicken",
-            "pizza",
-            "burger",
-            "fries",
-            "gravy",
-            "grease",
-            "butter",
-            "fat trimmings",
-        ],
-        "species": ["dog", "cat"],
-        "category": "fatty",
-        "why": "Rich foods can trigger stomach upset and sometimes pancreatitis.",
-        "watch_for": ["vomiting", "diarrhea", "abdominal pain", "lethargy"],
-    },
-    {
-        "label": "Dairy-heavy food",
-        "keywords": ["milk", "ice cream", "cream", "cheese", "whipped cream", "yogurt"],
-        "species": ["dog", "cat"],
-        "category": "dairy",
-        "why": "Many pets do not digest dairy well and can develop GI upset.",
-        "watch_for": ["gas", "vomiting", "diarrhea", "stomach discomfort"],
-    },
-    {
-        "label": "Salty or heavily seasoned food",
-        "keywords": [
-            "chips",
-            "jerky",
-            "ramen seasoning",
-            "seasoning mix",
-            "soy sauce",
-            "salty",
-            "seasoned fries",
-        ],
-        "species": ["dog", "cat"],
-        "category": "salty",
-        "why": "A lot of salt and seasoning can upset the stomach and stress sensitive pets.",
-        "watch_for": ["vomiting", "thirst", "restlessness", "diarrhea"],
-    },
-    {
-        "label": "Sugary dessert",
-        "keywords": ["cookie", "cake", "donut", "frosting", "candy", "marshmallow", "syrup"],
-        "species": ["dog", "cat"],
-        "category": "sweet",
-        "why": "Sugary desserts add little value and often hide richer or unsafe ingredients.",
-        "watch_for": ["vomiting", "diarrhea", "restlessness", "poor appetite"],
-    },
-    {
-        "label": "Spicy food",
-        "keywords": ["hot sauce", "jalapeno", "buffalo sauce", "spicy", "chili", "taco seasoning"],
-        "species": ["dog", "cat"],
-        "category": "spicy",
-        "why": "Spicy foods can irritate the stomach and mouth.",
-        "watch_for": ["drooling", "vomiting", "diarrhea", "pawing at mouth"],
-    },
-    {
-        "label": "Raw meat, fish, or egg",
-        "keywords": ["raw egg", "raw meat", "raw fish", "sushi", "tartare", "ceviche"],
-        "species": ["dog", "cat"],
-        "category": "raw",
-        "why": "Raw foods can carry bacteria or parasites, especially for vulnerable pets.",
-        "watch_for": ["vomiting", "diarrhea", "fever", "poor appetite"],
-    },
-    {
-        "label": "Avocado flesh",
-        "keywords": ["avocado", "guacamole"],
-        "species": ["dog", "cat"],
-        "category": "fatty",
-        "why": "Small amounts of plain avocado flesh are not always an emergency, but it is rich and can upset the stomach.",
-        "watch_for": ["vomiting", "diarrhea", "abdominal pain", "poor appetite"],
-    },
-    {
-        "label": "Peanut butter",
-        "keywords": ["peanut butter"],
-        "species": ["dog", "cat"],
-        "category": "label_check",
-        "why": "Peanut butter may be okay, but the ingredient label must be checked for xylitol and excess sugar.",
-        "watch_for": ["vomiting", "weakness", "diarrhea", "restlessness"],
-    },
-]
-
-SAFE_RULES = [
-    {
-        "label": "Plain cooked chicken",
-        "keywords": ["plain chicken", "boiled chicken", "unseasoned chicken", "cooked chicken breast"],
-        "species": ["dog", "cat"],
-        "why": "Plain cooked chicken is often tolerated well in small portions.",
-    },
-    {
-        "label": "Plain cooked turkey",
-        "keywords": ["plain turkey", "unseasoned turkey", "cooked turkey breast"],
-        "species": ["dog", "cat"],
-        "why": "Lean unseasoned turkey is usually a safer protein choice.",
-    },
-    {
-        "label": "Plain cooked egg",
-        "keywords": ["plain egg", "boiled egg", "cooked egg", "scrambled egg", "hard boiled egg"],
-        "species": ["dog", "cat"],
-        "why": "Plain cooked egg can work as a small protein add-on when it is fully cooked and unseasoned.",
-    },
-    {
-        "label": "Plain pumpkin",
-        "keywords": ["plain pumpkin", "pumpkin puree", "100 pumpkin"],
-        "species": ["dog", "cat"],
-        "why": "Plain pumpkin is commonly used in small amounts for gentle digestion support.",
-    },
-    {
-        "label": "Plain white rice",
-        "keywords": ["plain rice", "white rice", "boiled rice"],
-        "species": ["dog", "cat"],
-        "why": "Plain rice is bland and usually low risk in modest portions.",
-    },
-    {
-        "label": "Carrots or cucumber",
-        "keywords": ["carrot", "carrots", "cucumber", "cucumbers"],
-        "species": ["dog", "cat"],
-        "why": "These are low-fat snack options when served plain and bite-sized.",
-    },
-    {
-        "label": "Blueberries",
-        "keywords": ["blueberry", "blueberries"],
-        "species": ["dog", "cat"],
-        "why": "Blueberries are usually fine in small amounts for many pets.",
-    },
-    {
-        "label": "Commercial pet food or treats",
-        "keywords": ["dog food", "cat food", "dog treat", "cat treat", "kibble"],
-        "species": ["dog", "cat"],
-        "why": "Commercial pet foods are made for pets and are generally the safer baseline choice.",
-    },
-]
-
-SEVERE_SYMPTOMS = {
-    "trouble breathing",
-    "collapse",
-    "seizure",
-    "seizures",
-    "bloated abdomen",
-    "can not keep water down",
 }
 
-MODERATE_SYMPTOMS = {
-    "vomiting",
-    "diarrhea",
-    "drooling",
-    "lethargy",
-    "tremors",
-    "stumbling",
-    "poor appetite",
-    "restlessness",
-    "pale gums",
-}
+RED_FLAG_RULES = [
+    {
+        "terms": ["cannot urinate", "straining to urinate", "blocked", "urinating blood"],
+        "en": "Possible urinary blockage or painful urination.",
+        "ru": "Возможна закупорка мочевыводящих путей или болезненное мочеиспускание.",
+    },
+    {
+        "terms": ["blood", "collapse", "seizures", "trouble breathing"],
+        "en": "Medical red flags show up in the description.",
+        "ru": "В описании есть медицинские красные флаги.",
+    },
+    {
+        "terms": ["pain", "limping", "vomiting", "diarrhea", "not eating", "not drinking"],
+        "en": "A pain or illness component may be driving the behavior change.",
+        "ru": "Изменение поведения может быть связано с болью или заболеванием.",
+    },
+]
 
 
 def has_openai_key() -> bool:
     return bool(os.getenv("OPENAI_API_KEY")) and OpenAI is not None
 
 
-def _language_code(language: str = "en") -> str:
+def _language_code(language: str | None) -> str:
     return "ru" if str(language or "").lower().startswith("ru") else "en"
 
 
-def _normalize_text(value: str) -> str:
-    clean = re.sub(r"[^a-zа-яё0-9]+", " ", (value or "").lower())
-    return re.sub(r"\s+", " ", clean).strip()
+def _localized(mapping: Any, language: str) -> Any:
+    if isinstance(mapping, dict) and language in mapping:
+        return mapping[language]
+    return mapping
 
 
-def _augment_multilingual_text(value: str) -> str:
-    lowered = (value or "").lower()
-    additions: list[str] = []
-
-    for source, target in RUSSIAN_TERM_MAP.items():
-        if source in lowered:
-            additions.append(target)
-
-    if additions:
-        return f"{value} {' '.join(additions)}"
-    return value
+def _normalize_text(text: str) -> str:
+    normalized = (text or "").lower()
+    for russian, english in RUSSIAN_TERM_MAP.items():
+        normalized = normalized.replace(russian, english)
+    return re.sub(r"\s+", " ", normalized).strip()
 
 
-def _localize_label(label: str, language: str = "en") -> str:
-    if _language_code(language) == "ru":
-        return LABEL_TRANSLATIONS_RU.get(label, label)
-    return label
+def _extract_json_object(raw_text: str) -> dict[str, Any] | None:
+    if not raw_text:
+        return None
+    match = re.search(r"\{.*\}", raw_text, flags=re.S)
+    if not match:
+        return None
+    try:
+        parsed = json.loads(match.group(0))
+    except json.JSONDecodeError:
+        return None
+    return parsed if isinstance(parsed, dict) else None
 
 
-def _localize_reason(reason: str, language: str = "en") -> str:
-    if _language_code(language) != "ru":
-        return reason
-    return REASON_TRANSLATIONS_RU.get(reason, reason)
+def _pet_name_or_default(pet_name: str | None, language: str) -> str:
+    clean = (pet_name or "").strip()
+    if clean:
+        return clean
+    return "питомец" if language == "ru" else "your pet"
 
 
-def _localize_symptom(symptom: str, language: str = "en") -> str:
-    if _language_code(language) != "ru":
-        return symptom
-    return SYMPTOM_TRANSLATIONS_RU.get(symptom.lower(), symptom)
+def _issue_definition(issue_key: str, species: str) -> dict[str, Any]:
+    issue = ISSUE_LIBRARY.get(issue_key) or ISSUE_LIBRARY["not_sure"]
+    if species not in issue.get("species", []):
+        return ISSUE_LIBRARY["not_sure"]
+    return issue
 
 
-def _localize_alternative(item: str, language: str = "en") -> str:
-    if _language_code(language) != "ru":
-        return item
-    return ALTERNATIVE_TRANSLATIONS_RU.get(item, item)
+def issue_display_label(issue_key: str, species: str, language: str = "en") -> str:
+    issue = _issue_definition(issue_key, species)
+    return str(_localized(issue["label"], _language_code(language)))
 
 
-def _localize_value(value: str, language: str = "en") -> str:
-    if _language_code(language) != "ru":
-        return value
-    return VALUE_TRANSLATIONS_RU.get(value, value)
+def behavior_issue_choices(species: str, language: str = "en") -> list[tuple[str, str]]:
+    lang = _language_code(language)
+    options: list[tuple[str, str]] = []
+    for key, issue in ISSUE_LIBRARY.items():
+        if species in issue.get("species", []):
+            options.append((key, str(_localized(issue["label"], lang))))
+    return options
 
 
-def _contains_any(text: str, tokens: list[str]) -> bool:
-    return any(token in text for token in tokens)
+def _search_url(store: str, query: str) -> str:
+    encoded = quote_plus(query)
+    if store == "chewy":
+        return f"https://www.chewy.com/s?query={encoded}"
+    return f"https://www.amazon.com/s?k={encoded}"
 
 
-def _keyword_present(text: str, keyword: str) -> bool:
-    normalized_keyword = _normalize_text(keyword)
-    if not normalized_keyword:
-        return False
-
-    pattern = r"\b" + r"\s+".join(re.escape(token) for token in normalized_keyword.split()) + r"\b"
-    return re.search(pattern, text) is not None
-
-
-def _find_rule_matches(text: str, species: str, rules: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    matches: list[dict[str, Any]] = []
-
-    for rule in rules:
-        if species not in rule["species"]:
+def _build_toolkit(tool_keys: list[str], species: str, language: str) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    for key in tool_keys:
+        product = PRODUCT_LIBRARY.get(key)
+        if not product:
             continue
-
-        matched_keywords = [
-            keyword for keyword in rule.get("keywords", []) if _keyword_present(text, keyword)
-        ]
-        if matched_keywords:
-            enriched_rule = dict(rule)
-            enriched_rule["matched_keywords"] = matched_keywords
-            matches.append(enriched_rule)
-
-    return matches
-
-
-def _dedupe(items: list[str]) -> list[str]:
-    seen: set[str] = set()
-    unique_items: list[str] = []
-    for item in items:
-        cleaned = item.strip()
-        if cleaned and cleaned not in seen:
-            seen.add(cleaned)
-            unique_items.append(cleaned)
-    return unique_items
+        query_map = product.get("query", {})
+        query = query_map.get(species) or query_map.get("dog") or query_map.get("cat") or key
+        items.append(
+            {
+                "title": str(_localized(product["title"], language)),
+                "body": str(_localized(product["why"], language)),
+                "chewy_url": _search_url("chewy", query),
+                "amazon_url": _search_url("amazon", query),
+            }
+        )
+    return items
 
 
-def _join_labels(items: list[str], language: str = "en") -> str:
-    language = _language_code(language)
-    if not items:
+def _image_summary_text(image_context: dict[str, str], language: str) -> str:
+    pieces = [
+        image_context.get("scene", ""),
+        image_context.get("setup", ""),
+        image_context.get("friction", ""),
+        image_context.get("adjustment", ""),
+    ]
+    pieces = [piece.strip() for piece in pieces if piece and piece.strip()]
+    if not pieces:
         return ""
-    if len(items) == 1:
-        return items[0]
-    if len(items) == 2:
-        return f"{items[0]} {'и' if language == 'ru' else 'and'} {items[1]}"
-    return f"{', '.join(items[:-1])}, {'и' if language == 'ru' else 'and'} {items[-1]}"
+    separator = " " if language == "en" else " "
+    return separator.join(pieces)
 
 
-def _coerce_message_text(content: Any) -> str:
-    if isinstance(content, str):
-        return content.strip()
-
-    if isinstance(content, list):
-        chunks: list[str] = []
-        for item in content:
-            if isinstance(item, dict):
-                if item.get("type") == "text":
-                    text = item.get("text", "")
-                    if text:
-                        chunks.append(str(text).strip())
-                continue
-
-            item_type = getattr(item, "type", "")
-            if item_type == "text":
-                text_value = getattr(item, "text", "")
-                if text_value:
-                    chunks.append(str(text_value).strip())
-        return "\n".join(chunks).strip()
-
-    return ""
+def _detect_red_flags(normalized_text: str, issue_key: str, duration: str, intensity: str, conditions: list[str]) -> list[str]:
+    flags: list[str] = []
+    lang = "en"
+    for rule in RED_FLAG_RULES:
+        if any(term in normalized_text for term in rule["terms"]):
+            flags.append(rule[lang])
+    if issue_key == "cat_litter_box" and duration == "sudden":
+        flags.append("Possible urinary or pain-related change with litter behavior.")
+    if intensity == "high" and ("senior_pet" in conditions or "pain_or_mobility" in conditions) and duration == "sudden":
+        flags.append("High-intensity sudden change in a senior or painful pet needs medical rule-out.")
+    return flags
 
 
-def extract_food_context_from_image(
+def _translate_red_flags(flags: list[str], language: str) -> list[str]:
+    if language == "en":
+        return flags
+    translated: list[str] = []
+    for flag in flags:
+        translated.append(
+            {
+                "Possible urinary or pain-related change with litter behavior.": "Поведение вокруг лотка может быть связано с болью или проблемой мочеиспускания.",
+                "High-intensity sudden change in a senior or painful pet needs medical rule-out.": "Резкое сильное изменение у пожилого питомца или питомца с болью нужно сначала исключать по медицине.",
+            }.get(flag, flag)
+        )
+    return translated
+
+
+def extract_behavior_context_from_image(
     image_bytes: bytes,
-    mime_type: str = "image/jpeg",
+    mime_type: str | None,
     language: str = "en",
-) -> dict[str, str | bool]:
-    response_language = "Russian" if _language_code(language) == "ru" else "English"
+) -> dict[str, str] | None:
     if not has_openai_key():
-        return {
-            "ok": False,
-            "summary": "",
-            "error": (
-                "Добавьте OPENAI_API_KEY, чтобы включить AI-анализ изображения."
-                if _language_code(language) == "ru"
-                else "Add OPENAI_API_KEY to enable AI image understanding."
-            ),
-        }
+        return None
 
-    client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
-    encoded = base64.b64encode(image_bytes).decode("ascii")
+    client = OpenAI()
+    lang = _language_code(language)
+    image_b64 = base64.b64encode(image_bytes).decode("ascii")
+    prompt = (
+        "You are reading a photo of a pet setup for a pet behavior coaching app. "
+        "Return strict JSON with keys: scene, setup, friction, adjustment. "
+        "Each value should be a short sentence. Focus on environment clues, not medical diagnosis. "
+        f"Write the sentences in {'Russian' if lang == 'ru' else 'English'}."
+    )
 
     try:
-        response = client.chat.completions.create(
+        response = client.responses.create(
             model=MODEL_NAME,
-            temperature=0.1,
-            messages=[
-                {
-                    "role": "system",
-                    "content": (
-                        "You analyze pet food risk from photos. Identify the likely food or product shown, visible "
-                        "ingredients or preparation clues, the estimated visible portion, an approximate calorie "
-                        "range for the visible portion if possible, and hidden risk cues like chocolate, grapes, "
-                        "onion, garlic, xylitol, caffeine, alcohol, bones, or spicy sauces. Be concise, factual, "
-                        "and clearly say when something is only an estimate."
-                    ),
-                },
+            input=[
                 {
                     "role": "user",
                     "content": [
-                        {
-                            "type": "text",
-                            "text": (
-                                f"Respond in {response_language} using exactly 5 short lines.\n"
-                                "Line 1: Likely item\n"
-                                "Line 2: Visible ingredients or preparation\n"
-                                "Line 3: Estimated visible portion\n"
-                                "Line 4: Estimated calories for the visible portion\n"
-                                "Line 5: Pet risk cues for dogs or cats"
-                            ),
-                        },
-                        {
-                            "type": "image_url",
-                            "image_url": {"url": f"data:{mime_type};base64,{encoded}"},
-                        },
+                        {"type": "input_text", "text": prompt},
+                        {"type": "input_image", "image_url": f"data:{mime_type or 'image/png'};base64,{image_b64}"},
                     ],
-                },
+                }
             ],
         )
-        content = _coerce_message_text(response.choices[0].message.content)
-        return {"ok": True, "summary": content, "error": ""}
-    except Exception as error:  # pragma: no cover - runtime integration only
-        return {"ok": False, "summary": "", "error": str(error)}
+        raw_text = getattr(response, "output_text", "") or ""
+        parsed = _extract_json_object(raw_text) or {}
+        scene = str(parsed.get("scene", "")).strip()
+        setup = str(parsed.get("setup", "")).strip()
+        friction = str(parsed.get("friction", "")).strip()
+        adjustment = str(parsed.get("adjustment", "")).strip()
+        if not any([scene, setup, friction, adjustment]):
+            return None
+        return {
+            "scene": scene,
+            "setup": setup,
+            "friction": friction,
+            "adjustment": adjustment,
+            "summary": _image_summary_text(
+                {"scene": scene, "setup": setup, "friction": friction, "adjustment": adjustment},
+                lang,
+            ),
+        }
+    except Exception:
+        return None
 
 
-def _condition_adjustments(
-    conditions: set[str], caution_matches: list[dict[str, Any]]
-) -> tuple[list[str], int]:
-    reasons: list[str] = []
-    score_boost = 0
-    caution_categories = {match["category"] for match in caution_matches}
-
-    if "pancreatitis" in conditions and "fatty" in caution_categories:
-        reasons.append("A history of pancreatitis makes rich or greasy foods more risky.")
-        score_boost = max(score_boost, 1)
-
-    if "kidney disease" in conditions and "salty" in caution_categories:
-        reasons.append("Kidney disease is a reason to be stricter with salty or heavily seasoned foods.")
-        score_boost = max(score_boost, 1)
-
-    if "diabetes" in conditions and "sweet" in caution_categories:
-        reasons.append("For diabetic pets, sugary foods are a poor fit even when they are not classic toxins.")
-        score_boost = max(score_boost, 1)
-
-    return reasons, score_boost
+def _confidence_bucket(description: str, issue_key: str, image_context: dict[str, str] | None) -> int:
+    score = 1
+    if len((description or "").strip()) > 40:
+        score += 1
+    if issue_key != "not_sure":
+        score += 1
+    if image_context and image_context.get("summary"):
+        score += 1
+    return 3 if score >= 4 else 2 if score >= 2 else 1
 
 
-def _allergy_adjustments(allergy_text: str, normalized_text: str) -> list[str]:
-    reasons: list[str] = []
-    allergies = [item.strip() for item in re.split(r"[,/]", allergy_text or "") if item.strip()]
-    for allergy in allergies:
-        if _keyword_present(normalized_text, allergy):
-            reasons.append(f"The description appears to include {allergy}, which matches this pet's allergy list.")
-    return reasons
-
-
-def _make_summary(
-    verdict: str,
-    pet_name: str,
-    species: str,
-    amount_label: str,
-    already_ate: bool,
-    match_labels: list[str],
-    unknown_item: bool,
-    language: str = "en",
-) -> str:
-    if _language_code(language) == "ru":
-        species_word = "собаки" if species == "dog" else "кошки"
-        amount_text = _localize_value(amount_label, language).lower()
-        match_text = _join_labels([_localize_label(label, language) for label in match_labels], language)
-
-        if verdict == "Avoid":
-            if match_text:
-                return (
-                    f"{pet_name} лучше не давать это. Я вижу риски, связанные с: {match_text}. "
-                    f"{'Так как питомец уже это съел, лучше срочно связаться с ветеринаром.' if already_ate else 'Для питомца это плохой выбор в качестве угощения.'}"
-                )
-            return (
-                f"{pet_name} сейчас лучше избегать этого продукта. По сочетанию признаков ситуация "
-                f"выглядит серьезнее обычного вопроса про перекус."
-            )
-
-        if verdict == "Caution":
-            if unknown_item:
-                return (
-                    f"По одному только описанию я не могу уверенно назвать продукт безопасным. "
-                    f"Если {pet_name} уже съел {amount_text}, стоит быть особенно осторожным и наблюдать."
-                )
-            return (
-                f"Это не выглядит как автоматическая экстренная ситуация, но для {species_word} нужна осторожность. "
-                f"{'Раз часть уже съедена, особенно важны количество и симптомы.' if already_ate else 'Крошечный кусочек переносится иначе, чем полноценная порция.'}"
-            )
-
-        if already_ate:
-            return (
-                f"По описанию это выглядит относительно низкорисковым для {pet_name}, особенно если количество "
-                f"было небольшим и еда была без приправ."
-            )
-        return f"Для {pet_name} это выглядит относительно безопасным вариантом, если продукт простой и порция маленькая."
-
-    species_word = "dog" if species == "dog" else "cat"
-    amount_text = _localize_value(amount_label, language).lower()
-    match_text = _join_labels(match_labels, language)
-
-    if verdict == "Avoid":
-        if match_text:
-            return (
-                f"{pet_name} should skip this. I found risk cues for {match_text}. "
-                f"{'Because some was already eaten, this needs urgent veterinary guidance.' if already_ate else 'This is not a good treat choice for a pet.'}"
-            )
-        return (
-            f"{pet_name} should avoid this right now. The combination of symptoms or context makes this "
-            f"more urgent than a routine snack question."
+def _dynamic_driver_notes(
+    when_happens: str,
+    conditions: list[str],
+    triggers: str,
+    language: str,
+) -> list[str]:
+    notes: list[str] = []
+    trigger_text = (triggers or "").strip()
+    if when_happens == "home_alone":
+        notes.append(
+            "Early departure cues may be the real start of the problem."
+            if language == "en"
+            else "Настоящий старт проблемы может начинаться уже на ранних сигналах ухода."
         )
-
-    if verdict == "Caution":
-        if unknown_item:
-            return (
-                f"I cannot confidently call this pet-safe from the description alone. "
-                f"If {pet_name} already had a {amount_text}, use extra caution and watch closely."
+    if when_happens == "guests":
+        notes.append(
+            "The social picture may be too fast or too crowded."
+            if language == "en"
+            else "Социальная картина может быть слишком быстрой или слишком плотной."
+        )
+    if when_happens == "walks":
+        notes.append(
+            "Outdoor distance and pace may matter more than more repetition."
+            if language == "en"
+            else "На улице дистанция и темп могут быть важнее, чем лишние повторы."
+        )
+    if "noise_sensitivity" in conditions:
+        notes.append(
+            "Noise sensitivity can keep recovery slow even after the trigger is gone."
+            if language == "en"
+            else "Чувствительность к шуму может замедлять восстановление даже после исчезновения триггера."
+        )
+    if "multi_pet_home" in conditions:
+        notes.append(
+            "Resource access and tension with other pets may be part of the picture."
+            if language == "en"
+            else "Часть проблемы может быть связана с доступом к ресурсам и напряжением между питомцами."
+        )
+    if "recent_adoption" in conditions or "rescue_history" in conditions:
+        notes.append(
+            "Transition history can make threshold building slower than expected."
+            if language == "en"
+            else "История адаптации может делать выстраивание устойчивости медленнее, чем ожидается."
+        )
+    if trigger_text:
+        notes.append(
+            (
+                f"Known triggers already mentioned: {trigger_text}."
+                if language == "en"
+                else f"Уже отмеченные триггеры: {trigger_text}."
             )
-        return (
-            f"This is not an automatic emergency, but it deserves caution for a {species_word}. "
-            f"{'Since some was already eaten, portion size and symptoms matter.' if already_ate else 'A tiny amount may be tolerated better than a full serving.'}"
         )
+    return notes
 
-    if already_ate:
-        return (
-            f"This looks relatively low risk for {pet_name} based on the description, especially if the amount "
-            f"was only a {amount_text} and the food was plain."
+
+def _dynamic_today_steps(
+    intensity: str,
+    when_happens: str,
+    conditions: list[str],
+    language: str,
+) -> list[str]:
+    steps: list[str] = []
+    if intensity == "high":
+        steps.append(
+            "Make today easier than usual. Prevent a full rehearsal if you can."
+            if language == "en"
+            else "Сделай сегодняшний день легче обычного. По возможности не допускай полного повторения проблемы."
         )
-    return f"This looks like a relatively safe option for {pet_name} when served plain and in a small portion."
-
-
-def _is_acute_case(already_ate: bool, severe_hits: list[str], moderate_hits: list[str]) -> bool:
-    return already_ate or bool(severe_hits or moderate_hits)
-
-
-def _coach_portion_hint(weight_lbs: float, caution_level: str, language: str = "en") -> str:
-    if caution_level == "avoid":
-        return (
-            "Я бы не включал это в рацион и не строил вокруг него кормление."
-            if _language_code(language) == "ru"
-            else "I would not build this into the feeding routine at all."
+    if when_happens == "night":
+        steps.append(
+            "Keep the late evening lower-stimulation and more predictable."
+            if language == "en"
+            else "Сделай поздний вечер менее стимулирующим и более предсказуемым."
         )
+    if when_happens == "car":
+        steps.append(
+            "Practice around the vehicle without turning every rep into a full trip."
+            if language == "en"
+            else "Потренируйся рядом с машиной, не превращая каждый повтор в полноценную поездку."
+        )
+    if "pain_or_mobility" in conditions or "senior_pet" in conditions:
+        steps.append(
+            "Watch closely for stiffness, hesitation, or pain-linked changes during the hard moment."
+            if language == "en"
+            else "Внимательно смотри на скованность, заминки и признаки боли в сложный момент."
+        )
+    return steps
 
-    if weight_lbs and weight_lbs < 15:
-        safe_portion = "1-2 tiny bites"
-        caution_portion = "one tiny taste at most"
-        safe_portion_ru = "1-2 совсем маленьких кусочка"
-        caution_portion_ru = "максимум один маленький вкус"
-    elif weight_lbs and weight_lbs < 45:
-        safe_portion = "2-4 bite-sized pieces"
-        caution_portion = "1-2 bite-sized pieces"
-        safe_portion_ru = "2-4 кусочка маленького размера"
-        caution_portion_ru = "1-2 маленьких кусочка"
-    else:
-        safe_portion = "a few bite-sized pieces"
-        caution_portion = "1-3 bite-sized pieces"
-        safe_portion_ru = "несколько маленьких кусочков"
-        caution_portion_ru = "1-3 небольших кусочка"
 
-    if _language_code(language) == "ru":
+def _dynamic_week_steps(duration: str, language: str) -> list[str]:
+    if duration == "months":
+        return [
+            "Expect steadier progress from structure and repetition than from one big trick."
+            if language == "en"
+            else "Ожидай более ровный прогресс от структуры и повторения, а не от одного большого приема."
+        ]
+    if duration == "sudden":
+        return [
+            "Because this changed suddenly, log any appetite, sleep, bathroom, or movement changes too."
+            if language == "en"
+            else "Раз изменение началось резко, отмечай еще аппетит, сон, туалет и изменения движения."
+        ]
+    return []
+
+
+def _vet_first_plan(language: str) -> tuple[list[str], list[str], list[str]]:
+    if language == "ru":
         return (
-            f"Если использовать это как добавку, держи порцию на уровне {safe_portion_ru}."
-            if caution_level == "safe"
-            else f"Если давать это вообще, то не больше чем {caution_portion_ru}."
+            [
+                "Пока не усложняй тренировки и не провоцируй проблемную ситуацию специально.",
+                "Собери короткую заметку: когда началось, что изменилось, есть ли боль, еда, туалет, сон.",
+                "Если есть выраженные симптомы или невозможность помочиться, действуй как в срочной ситуации.",
+            ],
+            [
+                "Сначала исключи медицинскую причину, а уже потом строй полноценный поведенческий план.",
+                "После проверки у врача вернись к более мягкой поведенческой структуре и логам наблюдений.",
+            ],
+            [
+                "Если есть кровь, боль, сильное натуживание, коллапс, судороги, сильная одышка или резкое ухудшение — нужна быстрая помощь.",
+            ],
         )
     return (
-        f"If you use it as an add-on, keep it around {safe_portion}."
-        if caution_level == "safe"
-        else f"If you offer it at all, cap it around {caution_portion}."
+        [
+            "Pause hard training setups and do not intentionally trigger the full problem today.",
+            "Write down when this started, what changed, and whether appetite, sleep, bathroom habits, or mobility changed too.",
+            "Treat inability to urinate or severe medical signs as urgent.",
+        ],
+        [
+            "Rule out the medical piece first, then rebuild a gentler behavior plan from there.",
+            "After medical rule-out, return to short low-pressure reps and clearer observation notes.",
+        ],
+        [
+            "Blood, pain, severe straining, collapse, seizures, breathing trouble, or sudden rapid decline deserve urgent help.",
+        ],
     )
 
 
-def _coach_copy(
-    verdict: str,
+def analyze_behavior(
+    *,
     pet_name: str,
-    match_labels: list[str],
-    toxic_matches: list[dict[str, Any]],
-    caution_matches: list[dict[str, Any]],
-    weight_lbs: float,
+    species: str,
+    age_years: float,
+    weight_lb: float,
+    breed: str,
+    triggers: str,
+    conditions: list[str],
+    issue_key: str,
+    description: str,
+    when_happens: str,
+    intensity: str,
+    duration: str,
+    already_tried: str,
+    image_context: dict[str, str] | None = None,
     language: str = "en",
 ) -> dict[str, Any]:
-    match_text = _join_labels([_localize_label(label, language) for label in match_labels], language)
-    caution_categories = {match.get("category", "") for match in caution_matches}
+    lang = _language_code(language)
+    issue = _issue_definition(issue_key, species)
+    pet_display = _pet_name_or_default(pet_name, lang)
+    normalized_text = _normalize_text(" ".join(filter(None, [description, already_tried, triggers, breed])))
+    red_flags = _detect_red_flags(normalized_text, issue_key, duration, intensity, conditions)
 
-    if verdict == "Safe":
-        if _language_code(language) == "ru":
-            summary = (
-                f"Как диетологический разбор, это выглядит как неплохая небольшая добавка для {pet_name}, если продукт простой и без приправ."
-            )
-            reasons_title = "Почему это ок"
-            actions_title = "Как я бы это давал"
-            watch_title = "Если не зайдет"
-            actions = [
-                "Оставляй это как маленькое дополнение, а не как основу рациона.",
-                _coach_portion_hint(weight_lbs, "safe", language),
-                "Лучше всего давать это в простом виде: без соли, масла, чеснока и соусов.",
-            ]
-            display = "Хороший вариант"
-            badge = "Можно в рацион"
-        else:
-            summary = f"As a diet read, this looks like a solid small add-on for {pet_name} when it is plain and unseasoned."
-            reasons_title = "Why It Works"
-            actions_title = "How I'd Use It"
-            watch_title = "If It Doesn't Sit Well"
-            actions = [
-                "Keep this as a small add-on, not the foundation of the diet.",
-                _coach_portion_hint(weight_lbs, "safe", language),
-                "Best when it is plain: no salt, butter, garlic, or sauces.",
-            ]
-            display = "Good Add-On"
-            badge = "Good Fit"
-        return {
-            "summary": summary,
-            "display": display,
-            "badge": badge,
-            "actions_title": actions_title,
-            "reasons_title": reasons_title,
-            "watch_title": watch_title,
-            "actions": actions,
-        }
+    drivers = list(_localized(issue["drivers"], lang))
+    drivers.extend(_dynamic_driver_notes(when_happens, conditions, triggers, lang))
 
-    if verdict == "Caution":
-        dairy_or_rich = bool({"dairy", "fatty", "sweet", "salty", "spicy"} & caution_categories)
-        if _language_code(language) == "ru":
-            summary = (
-                f"Как еда на каждый день, это слабый вариант для {pet_name}. Я бы оставил это только как редкое угощение, а не как регулярную часть рациона."
-            )
-            if dairy_or_rich:
-                summary = (
-                    f"Для повседневного рациона {pet_name} это скорее редкое угощение, чем хороший регулярный выбор. "
-                    f"Такое лучше давать изредка и совсем понемногу."
-                )
-            reasons_title = "Почему я осторожен"
-            actions_title = "Как я бы это использовал"
-            watch_title = "Если желудок отреагирует"
-            actions = [
-                "Считай это редким угощением, а не нормальной частью рациона.",
-                _coach_portion_hint(weight_lbs, "caution", language),
-                "Если питомец чувствительный, маленький или с хроническими состояниями, лучше выбрать более простой вариант.",
-            ]
-            display = "Иногда можно"
-            badge = "Редкое угощение"
-        else:
-            summary = f"As an everyday food choice, this is weak for {pet_name}. I would frame it as an occasional treat, not a routine part of the bowl."
-            if dairy_or_rich:
-                summary = f"For everyday feeding, this is more of an occasional treat than a smart repeat choice for {pet_name}. Keep it infrequent and very small."
-            reasons_title = "Why I'm Cautious"
-            actions_title = "How I'd Use It"
-            watch_title = "If The Stomach Pushes Back"
-            actions = [
-                "Treat this as an occasional extra, not a normal part of the meal plan.",
-                _coach_portion_hint(weight_lbs, "caution", language),
-                "If your pet is sensitive, small, or has chronic conditions, choose a simpler option instead.",
-            ]
-            display = "Occasional Treat"
-            badge = "Treat Only"
-        return {
-            "summary": summary,
-            "display": display,
-            "badge": badge,
-            "actions_title": actions_title,
-            "reasons_title": reasons_title,
-            "watch_title": watch_title,
-            "actions": actions,
-        }
+    today_steps = list(_localized(issue["today"], lang))
+    today_steps.extend(_dynamic_today_steps(intensity, when_happens, conditions, lang))
 
-    if _language_code(language) == "ru":
+    week_plan = list(_localized(issue["week"], lang))
+    week_plan.extend(_dynamic_week_steps(duration, lang))
+
+    vet_flags = list(_localized(issue["vet"], lang))
+    if image_context and image_context.get("adjustment"):
+        today_steps.append(str(image_context["adjustment"]).strip())
+
+    detected_signals = [
+        issue_display_label(issue_key, species, lang),
+        _localized(WHEN_LABELS, lang).get(when_happens, when_happens),
+        _localized(INTENSITY_LABELS, lang).get(intensity, intensity),
+        _localized(DURATION_LABELS, lang).get(duration, duration),
+    ]
+    detected_signals.extend(_localized(CONDITION_LABELS, lang).get(item, item) for item in conditions)
+
+    severity_score = 0
+    severity_score += 2 if intensity == "high" else 1 if intensity == "medium" else 0
+    severity_score += 1 if duration in {"weeks", "months"} else 0
+    severity_score += 1 if issue_key in {"separation_anxiety", "barking_reactivity", "cat_litter_box"} else 0
+    severity_score += 1 if any(item in conditions for item in ("noise_sensitivity", "multi_pet_home", "recent_adoption")) else 0
+
+    if red_flags:
+        verdict = "avoid"
+        badge_label = BADGE_LABELS[lang]["avoid"]
+        result_title = (
+            "Medical or pain rule-out comes first"
+            if lang == "en"
+            else "Сначала исключаем медицину и боль"
+        )
         summary = (
-            f"Как вариант питания я бы это пропустил. Для {pet_name} лучше взять более простой и предсказуемый продукт, чем строить кормление вокруг {match_text or 'этого продукта'}."
+            f"{pet_display.capitalize()} may be showing a behavior problem with a medical layer underneath. "
+            "This is the point to slow down training pressure and rule out pain, urinary issues, or illness first."
+            if lang == "en"
+            else f"У {pet_display} поведенческая картина может идти вместе с медицинской причиной. "
+            "На этом этапе лучше снизить тренировочное давление и сначала исключить боль, проблемы с мочеиспусканием или болезнь."
         )
-        actions_title = "Что лучше сделать вместо этого"
-        reasons_title = "Почему я бы пропустил"
-        watch_title = "Если случайно попробует"
-        actions = [
-            "Не делай это частью рациона.",
-            "Возьми более простой и безопасный для питомца вариант без спорных ингредиентов.",
-            "Если питомец случайно это съест, переходи в экстренный режим.",
-        ]
-        display = "Лучше пропустить"
-        badge = "Лучше не включать"
+        today_steps, week_plan, urgent_vet = _vet_first_plan(lang)
+        vet_flags = _translate_red_flags(red_flags, lang) + urgent_vet
+        toolkit_items = _build_toolkit(issue.get("toolkit", {}).get(species, []), species, lang)[:2]
+        confidence_bucket = _confidence_bucket(description, issue_key, image_context)
     else:
-        summary = f"As a feeding choice, I would skip this. For {pet_name}, a simpler and more predictable option makes more sense than building around {match_text or 'this food'}."
-        actions_title = "What I'd Do Instead"
-        reasons_title = "Why I'd Skip It"
-        watch_title = "If It Gets Eaten By Accident"
-        actions = [
-            "Do not make this part of the routine feeding plan.",
-            "Choose a simpler pet-safe option without questionable add-ins.",
-            "If your pet accidentally eats it later, switch to Emergency Mode.",
-        ]
-        display = "Skip This Food"
-        badge = "Not A Fit"
-    return {
-        "summary": summary,
-        "display": display,
-        "badge": badge,
-        "actions_title": actions_title,
-        "reasons_title": reasons_title,
-        "watch_title": watch_title,
-        "actions": actions,
-    }
-
-
-def _safe_alternatives(species: str, language: str = "en") -> list[str]:
-    if species == "cat":
-        items = [
-            "plain cooked chicken or turkey",
-            "a small spoon of plain pumpkin",
-            "commercial cat treats with simple ingredients",
-        ]
-        return [_localize_alternative(item, language) for item in items]
-    items = [
-        "plain cooked chicken or turkey",
-        "carrot slices or cucumber pieces",
-        "commercial dog treats with short ingredient lists",
-    ]
-    return [_localize_alternative(item, language) for item in items]
-
-
-def _safe_swap_catalog(species: str) -> dict[str, list[dict[str, str]]]:
-    if species == "cat":
-        return {
-            "general": [
-                {
-                    "title": "Freeze-dried chicken cat treats",
-                    "query": "freeze dried chicken cat treats",
-                    "why": "Single-ingredient treats are easier to audit for hidden seasonings or sweeteners.",
-                },
-                {
-                    "title": "Limited-ingredient cat treats",
-                    "query": "limited ingredient cat treats",
-                    "why": "Short ingredient lists make it easier to avoid surprise fillers and problem ingredients.",
-                },
-                {
-                    "title": "Simple lickable cat treats",
-                    "query": "lickable cat treats limited ingredient",
-                    "why": "A pet-formulated lickable treat is usually a calmer choice than human snacks.",
-                },
-            ],
-            "low_fat": [
-                {
-                    "title": "Sensitive stomach cat treats",
-                    "query": "sensitive stomach cat treats",
-                    "why": "These are easier to use when rich or greasy human food is the problem.",
-                },
-                {
-                    "title": "Freeze-dried chicken cat treats",
-                    "query": "freeze dried chicken cat treats",
-                    "why": "Lean, simple protein is usually a cleaner swap than fatty leftovers.",
-                },
-                {
-                    "title": "Digestive support cat topper",
-                    "query": "digestive support cat food topper",
-                    "why": "A small pet-formulated topper can feel rewarding without the grease of table scraps.",
-                },
-            ],
-            "simple_label": [
-                {
-                    "title": "Limited-ingredient cat treats",
-                    "query": "limited ingredient cat treats",
-                    "why": "When the risky part is hidden in the label, simpler is better.",
-                },
-                {
-                    "title": "Single-protein cat treats",
-                    "query": "single protein cat treats",
-                    "why": "Single-protein products are easier to compare against allergy and sensitivity lists.",
-                },
-                {
-                    "title": "Simple lickable cat treats",
-                    "query": "lickable cat treats limited ingredient",
-                    "why": "This keeps the reward feeling while reducing mystery ingredients.",
-                },
-            ],
-            "bland": [
-                {
-                    "title": "Sensitive stomach cat wet food",
-                    "query": "sensitive stomach cat wet food",
-                    "why": "A gentler wet food option is often better than salty or spicy human food.",
-                },
-                {
-                    "title": "Limited-ingredient cat treats",
-                    "query": "limited ingredient cat treats",
-                    "why": "Simple treats help avoid extra spices, sodium, and sauces.",
-                },
-                {
-                    "title": "Simple lickable cat treats",
-                    "query": "lickable cat treats limited ingredient",
-                    "why": "These are easier to portion than random kitchen scraps.",
-                },
-            ],
-            "low_sugar": [
-                {
-                    "title": "Protein-first cat treats",
-                    "query": "high protein cat treats limited ingredient",
-                    "why": "Protein-forward treats are a better direction than dessert-type foods.",
-                },
-                {
-                    "title": "Freeze-dried chicken cat treats",
-                    "query": "freeze dried chicken cat treats",
-                    "why": "A straightforward protein treat is cleaner than sugary human food.",
-                },
-                {
-                    "title": "Limited-ingredient cat treats",
-                    "query": "limited ingredient cat treats",
-                    "why": "Short labels help you avoid syrupy fillers and extras.",
-                },
-            ],
-            "low_sodium": [
-                {
-                    "title": "Low sodium cat food topper",
-                    "query": "low sodium cat food topper",
-                    "why": "This is a better direction than salty chips, sauces, or deli-style leftovers.",
-                },
-                {
-                    "title": "Freeze-dried chicken cat treats",
-                    "query": "freeze dried chicken cat treats",
-                    "why": "Plain protein treats are usually simpler than seasoned human foods.",
-                },
-                {
-                    "title": "Limited-ingredient cat treats",
-                    "query": "limited ingredient cat treats",
-                    "why": "Fewer ingredients usually means fewer hidden salts and flavorings.",
-                },
-            ],
-            "soft_small": [
-                {
-                    "title": "Soft cat treats",
-                    "query": "soft cat treats limited ingredient",
-                    "why": "Soft, bite-sized treats are easier than risky hard objects or bones.",
-                },
-                {
-                    "title": "Simple lickable cat treats",
-                    "query": "lickable cat treats limited ingredient",
-                    "why": "Lickable treats remove the risk of splintering or hard chunks.",
-                },
-                {
-                    "title": "Small-bite cat treats",
-                    "query": "small bite cat treats",
-                    "why": "Small treats help with portion control and reduce choking-style concerns.",
-                },
-            ],
-            "cooked_gentle": [
-                {
-                    "title": "Sensitive stomach cat wet food",
-                    "query": "sensitive stomach cat wet food",
-                    "why": "A cooked, pet-formulated option is safer than raw human food.",
-                },
-                {
-                    "title": "Digestive support cat topper",
-                    "query": "digestive support cat food topper",
-                    "why": "This can add excitement without jumping into raw or risky add-ons.",
-                },
-                {
-                    "title": "Limited-ingredient cat treats",
-                    "query": "limited ingredient cat treats",
-                    "why": "Keeps the ingredient list short and predictable.",
-                },
-            ],
-        }
-
-    return {
-        "general": [
-            {
-                "title": "Limited-ingredient dog biscuits",
-                "query": "limited ingredient dog biscuits",
-                "why": "Simple labels are easier to trust than random human food ingredients.",
-            },
-            {
-                "title": "Freeze-dried chicken dog treats",
-                "query": "freeze dried chicken dog treats",
-                "why": "Single-ingredient protein treats reduce hidden oils, onions, and sweeteners.",
-            },
-            {
-                "title": "Pumpkin dog treats",
-                "query": "pumpkin dog treats limited ingredient",
-                "why": "Pumpkin-style treats are a gentler swap than rich table scraps.",
-            },
-        ],
-        "low_fat": [
-            {
-                "title": "Low-fat dog treats",
-                "query": "low fat dog treats",
-                "why": "These are a better direction when greasy or fried food is the issue.",
-            },
-            {
-                "title": "Freeze-dried chicken dog treats",
-                "query": "freeze dried chicken dog treats",
-                "why": "Lean protein is usually cleaner than pizza, bacon, or buttery leftovers.",
-            },
-            {
-                "title": "Digestive support dog treats",
-                "query": "digestive support dog treats",
-                "why": "This gives a reward moment without the rich fat load of table scraps.",
-            },
-        ],
-        "simple_label": [
-            {
-                "title": "Limited-ingredient dog biscuits",
-                "query": "limited ingredient dog biscuits",
-                "why": "Short ingredient lists make hidden xylitol, garlic, or other add-ins easier to avoid.",
-            },
-            {
-                "title": "Single-protein dog treats",
-                "query": "single protein dog treats",
-                "why": "One clear protein is easier to check against allergies or sensitivities.",
-            },
-            {
-                "title": "Freeze-dried chicken dog treats",
-                "query": "freeze dried chicken dog treats",
-                "why": "A simple protein treat is cleaner than label-heavy human snacks.",
-            },
-        ],
-        "bland": [
-            {
-                "title": "Digestive support dog treats",
-                "query": "digestive support dog treats",
-                "why": "These are a better fit than salty, spicy, or heavily seasoned food.",
-            },
-            {
-                "title": "Pumpkin dog treats",
-                "query": "pumpkin dog treats limited ingredient",
-                "why": "Pumpkin-style treats are usually gentler than fries, chips, or saucy leftovers.",
-            },
-            {
-                "title": "Limited-ingredient dog treats",
-                "query": "limited ingredient dog treats",
-                "why": "A shorter label helps keep the flavorings and seasonings under control.",
-            },
-        ],
-        "low_sugar": [
-            {
-                "title": "Low-sugar dog treats",
-                "query": "low sugar dog treats",
-                "why": "Dessert-style human food is a bad trade when a dog-safe treat can do the same job.",
-            },
-            {
-                "title": "Single-protein dog treats",
-                "query": "single protein dog treats",
-                "why": "Protein-first treats avoid the syrup, frosting, and sugar problem entirely.",
-            },
-            {
-                "title": "Freeze-dried chicken dog treats",
-                "query": "freeze dried chicken dog treats",
-                "why": "One simple ingredient is easier than cookies, donuts, or candy-type foods.",
-            },
-        ],
-        "low_sodium": [
-            {
-                "title": "Low sodium dog treats",
-                "query": "low sodium dog treats",
-                "why": "A better choice when the risky food is salty, cured, or heavily seasoned.",
-            },
-            {
-                "title": "Limited-ingredient dog biscuits",
-                "query": "limited ingredient dog biscuits",
-                "why": "Short labels help you dodge extra salt and flavor boosters.",
-            },
-            {
-                "title": "Freeze-dried chicken dog treats",
-                "query": "freeze dried chicken dog treats",
-                "why": "Plain protein is usually cleaner than chips, jerky, or deli-style scraps.",
-            },
-        ],
-        "soft_small": [
-            {
-                "title": "Soft training treats for dogs",
-                "query": "soft training treats for dogs",
-                "why": "Soft, bite-sized treats are safer than hard bones or risky chunks.",
-            },
-            {
-                "title": "Limited-ingredient soft dog treats",
-                "query": "limited ingredient soft dog treats",
-                "why": "This keeps the reward small, soft, and easier to portion.",
-            },
-            {
-                "title": "Small-bite dog treats",
-                "query": "small bite dog treats",
-                "why": "Tiny portion sizes are easier to manage after a risky food question.",
-            },
-        ],
-        "cooked_gentle": [
-            {
-                "title": "Digestive support dog topper",
-                "query": "digestive support dog food topper",
-                "why": "A pet-formulated topper is safer than raw or restaurant-style add-ons.",
-            },
-            {
-                "title": "Limited-ingredient dog treats",
-                "query": "limited ingredient dog treats",
-                "why": "A shorter, cooked ingredient list is easier to trust than raw foods.",
-            },
-            {
-                "title": "Freeze-dried chicken dog treats",
-                "query": "freeze dried chicken dog treats",
-                "why": "A simple protein swap is cleaner than raw meat or mixed leftovers.",
-            },
-        ],
-    }
-
-
-def _safe_swap_focus(
-    verdict: str,
-    toxic_matches: list[dict[str, Any]],
-    caution_matches: list[dict[str, Any]],
-    conditions: set[str],
-    allergy_text: str,
-) -> str:
-    if "pancreatitis" in conditions:
-        return "low_fat"
-    if "kidney disease" in conditions:
-        return "low_sodium"
-    if "diabetes" in conditions:
-        return "low_sugar"
-    if "sensitive stomach" in conditions:
-        return "bland"
-    if allergy_text.strip():
-        return "simple_label"
-
-    toxic_categories = {match.get("category", "") for match in toxic_matches}
-    caution_categories = {match.get("category", "") for match in caution_matches}
-
-    if "obstruction" in toxic_categories:
-        return "soft_small"
-    if "toxin" in toxic_categories:
-        return "simple_label"
-    if "fatty" in caution_categories:
-        return "low_fat"
-    if "salty" in caution_categories or "spicy" in caution_categories:
-        return "bland"
-    if "sweet" in caution_categories:
-        return "low_sugar"
-    if "raw" in caution_categories:
-        return "cooked_gentle"
-    if "label_check" in caution_categories:
-        return "simple_label"
-    if verdict != "Safe":
-        return "simple_label"
-    return "general"
-
-
-def _safe_swap_title(verdict: str, pet_name: str, already_ate: bool, language: str = "en") -> str:
-    if _language_code(language) == "ru":
-        if verdict == "Avoid":
-            return f"Более безопасные замены для {pet_name}"
-        if verdict == "Caution":
-            return f"Более чистые варианты для {pet_name}"
-        if already_ate:
-            return f"Хорошие запасные варианты для {pet_name}"
-        return f"Что стоит держать дома для {pet_name}"
-    if verdict == "Avoid":
-        return f"Safer swaps for {pet_name}"
-    if verdict == "Caution":
-        return f"Cleaner options for {pet_name}"
-    if already_ate:
-        return f"Good backup options for {pet_name}"
-    return f"Stock-up favorites for {pet_name}"
-
-
-def _safe_swap_subtitle(
-    verdict: str,
-    focus: str,
-    species: str,
-    already_ate: bool,
-    language: str = "en",
-) -> str:
-    if _language_code(language) == "ru":
-        species_word = "собачьих" if species == "dog" else "кошачьих"
-        focus_copy = {
-            "low_fat": "Нежирные варианты здесь разумнее, чем жирные остатки со стола.",
-            "simple_label": "Короткий состав — самый простой способ избежать скрытых рискованных ингредиентов.",
-            "bland": "Простые и мягкие варианты лучше, чем соленая, острая или сильно приправленная еда.",
-            "low_sugar": "Лучше уйти от десертов и выбирать белковые лакомства для питомцев.",
-            "low_sodium": "Менее соленые и менее переработанные варианты здесь безопаснее.",
-            "soft_small": "Мягкие маленькие лакомства безопаснее, чем твердые кости, большие куски и объедки.",
-            "cooked_gentle": "Приготовленные продукты для питомцев безопаснее, чем сырая человеческая еда.",
-            "general": "Готовые лакомства для питомцев обычно надежнее случайной человеческой еды.",
-        }.get(focus, "Простые лакомства для питомцев обычно безопаснее как запасной вариант.")
-
-        if verdict == "Avoid" and already_ate:
-            return (
-                f"Сначала разберите срочную ситуацию. Потом такие {species_word} варианты стоит держать под рукой, "
-                "чтобы не возвращаться к тому же рискованному продукту."
-            )
-
-        return focus_copy
-
-    species_word = "dog" if species == "dog" else "cat"
-    focus_copy = {
-        "low_fat": "Lean and lower-fat picks make more sense than greasy leftovers.",
-        "simple_label": "Short ingredient lists are the easiest way to avoid hidden problem ingredients.",
-        "bland": "Simple, gentler options are better than salty, spicy, or heavily seasoned foods.",
-        "low_sugar": "Skip dessert-type foods and steer toward protein-first pet treats.",
-        "low_sodium": "Lower-sodium, less processed choices are the safer lane here.",
-        "soft_small": "Small, soft treats are a better fit than hard objects, bones, or chunky scraps.",
-        "cooked_gentle": "Cooked, pet-formulated options are a safer direction than raw human foods.",
-        "general": "Pet-formulated treats are still a cleaner baseline than random human food.",
-    }.get(focus, "Simple pet treats are usually the safer fallback.")
-
-    if verdict == "Avoid" and already_ate:
-        return (
-            f"Handle the urgent situation first. After that, these are the kinds of {species_word}-safe options "
-            "worth keeping around so the same risky food question does not come up again."
-        )
-
-    return focus_copy
-
-
-def _safe_swap_items(
-    species: str,
-    focus: str,
-) -> list[dict[str, str]]:
-    catalog = _safe_swap_catalog(species)
-    return catalog.get(focus) or catalog["general"]
-
-
-def _build_safe_swap(
-    species: str,
-    pet_name: str,
-    verdict: str,
-    toxic_matches: list[dict[str, Any]],
-    caution_matches: list[dict[str, Any]],
-    conditions: set[str],
-    allergy_text: str,
-    already_ate: bool,
-    language: str = "en",
-) -> dict[str, Any]:
-    focus = _safe_swap_focus(
-        verdict=verdict,
-        toxic_matches=toxic_matches,
-        caution_matches=caution_matches,
-        conditions=conditions,
-        allergy_text=allergy_text,
-    )
-    items = _safe_swap_items(species, focus)
-    return {
-        "focus": focus,
-        "title": _safe_swap_title(verdict, pet_name, already_ate, language),
-        "subtitle": _safe_swap_subtitle(verdict, focus, species, already_ate, language),
-        "note": (
-            "Это только поисковые ссылки. Перед покупкой всегда перепроверяйте полный состав."
-            if _language_code(language) == "ru"
-            else "Search links only. Double-check the full ingredient label before buying anything new."
-        ),
-        "items": items,
-    }
-
-
-def analyze_food(
-    food_text: str,
-    pet_profile: dict[str, Any],
-    already_ate: bool = False,
-    amount_label: str = "Small bite",
-    symptoms: list[str] | None = None,
-    time_since: str = "",
-    image_summary: str = "",
-    language: str = "en",
-) -> dict[str, Any]:
-    symptoms = symptoms or []
-    species = (pet_profile.get("species") or "Dog").strip().lower()
-    species = "cat" if species.startswith("cat") else "dog"
-    pet_name = (pet_profile.get("name") or "your pet").strip() or "your pet"
-    weight_lbs = float(pet_profile.get("weight_lbs") or 0)
-    age_years = float(pet_profile.get("age_years") or 0)
-    conditions = {condition.strip().lower() for condition in pet_profile.get("conditions", []) if condition}
-    allergies = pet_profile.get("allergies", "")
-    combined_text = " ".join(part for part in [food_text, image_summary] if part).strip()
-    combined_text = _augment_multilingual_text(combined_text)
-    normalized_text = _normalize_text(combined_text)
-    toxic_matches = _find_rule_matches(normalized_text, species, HIGH_RISK_RULES)
-    caution_matches = _find_rule_matches(normalized_text, species, CAUTION_RULES)
-    safe_matches = _find_rule_matches(normalized_text, species, SAFE_RULES)
-    severe_hits = [symptom for symptom in symptoms if symptom.lower() in SEVERE_SYMPTOMS]
-    moderate_hits = [symptom for symptom in symptoms if symptom.lower() in MODERATE_SYMPTOMS]
-    unknown_item = not toxic_matches and not caution_matches and not safe_matches
-
-    score = 0
-    if toxic_matches:
-        score = 2
-    elif caution_matches or unknown_item:
-        score = 1
-
-    if already_ate and weight_lbs and weight_lbs < 15 and (toxic_matches or caution_matches):
-        score = max(score, 2 if toxic_matches else 1)
-
-    if age_years >= 10 and caution_matches:
-        score = max(score, 1)
-
-    if amount_label in {"Moderate portion", "Large portion"} and (caution_matches or unknown_item):
-        score = max(score, 1)
-
-    condition_reasons, condition_boost = _condition_adjustments(conditions, caution_matches)
-    score = min(2, score + condition_boost)
-    allergy_reasons = _allergy_adjustments(allergies, normalized_text)
-    if allergy_reasons:
-        score = max(score, 1)
-
-    acute_case = _is_acute_case(already_ate, severe_hits, moderate_hits)
-
-    if severe_hits:
-        score = 2
-    elif moderate_hits and (toxic_matches or already_ate):
-        score = max(score, 1)
-
-    verdict = "Safe" if score == 0 else "Caution" if score == 1 else "Avoid"
-    if acute_case:
-        verdict_tone = {
-            "Safe": {
-                "label": "Низкий риск" if _language_code(language) == "ru" else "Low risk",
-                "display": "Можно" if _language_code(language) == "ru" else "Safe",
-                "color": "#177245",
-            },
-            "Caution": {
-                "label": "Осторожно" if _language_code(language) == "ru" else "Use caution",
-                "display": "Осторожно" if _language_code(language) == "ru" else "Caution",
-                "color": "#9a6300",
-            },
-            "Avoid": {
-                "label": "Срочная проверка" if _language_code(language) == "ru" else "Urgent review",
-                "display": "Нельзя" if _language_code(language) == "ru" else "Avoid",
-                "color": "#a42d2d",
-            },
-        }[verdict]
-    else:
-        coach_preview = _coach_copy(
-            verdict=verdict,
-            pet_name=pet_name,
-            match_labels=[match["label"] for match in toxic_matches + caution_matches + safe_matches],
-            toxic_matches=toxic_matches,
-            caution_matches=caution_matches,
-            weight_lbs=weight_lbs,
-            language=language,
-        )
-        verdict_tone = {
-            "label": str(coach_preview["badge"]),
-            "display": str(coach_preview["display"]),
-            "color": "#177245" if verdict == "Safe" else "#9a6300" if verdict == "Caution" else "#a42d2d",
-        }
-
-    match_labels = [match["label"] for match in toxic_matches + caution_matches + safe_matches]
-    reasons = [
-        _localize_reason(match["why"], language)
-        for match in toxic_matches + caution_matches + safe_matches
-        if match.get("why")
-    ]
-    reasons.extend(_localize_reason(item, language) for item in condition_reasons)
-    if _language_code(language) == "ru":
-        reasons.extend(
-            f"В описании, похоже, есть {allergy}, а это совпадает со списком аллергий питомца."
-            for allergy in [item.strip() for item in re.split(r"[,/]", allergies or "") if item.strip()]
-            if _keyword_present(normalized_text, allergy)
-        )
-    else:
-        reasons.extend(allergy_reasons)
-
-    if amount_label in {"Moderate portion", "Large portion"} and verdict != "Safe":
-        reasons.append(_localize_reason("The amount matters. Bigger portions create more risk than a tiny lick or crumb.", language))
-
-    if time_since and verdict == "Avoid":
-        if _language_code(language) == "ru":
-            reasons.append(
-                f"С момента поедания прошло: {_localize_value(time_since, language)}. Обычно безопаснее обратиться за помощью раньше, чем ждать."
-            )
+        if severity_score >= 4:
+            verdict = "caution"
+            badge_label = BADGE_LABELS[lang]["priority"]
+        elif severity_score >= 2:
+            verdict = "caution"
+            badge_label = BADGE_LABELS[lang]["caution"]
         else:
-            reasons.append(f"Time since exposure: {time_since}. Early professional guidance is usually safer than waiting.")
+            verdict = "safe"
+            badge_label = BADGE_LABELS[lang]["safe"]
 
-    if severe_hits:
-        reasons.append(_localize_reason("Current symptoms already include emergency warning signs.", language))
-    elif moderate_hits:
-        reasons.append(_localize_reason("Current symptoms raise the level of concern above a routine treat question.", language))
-
-    actions: list[str] = []
-    if verdict == "Avoid" and acute_case:
-        actions.extend(
-            [
-                "Уберите еду и держите рядом упаковку или состав."
-                if _language_code(language) == "ru"
-                else "Remove the food and keep the packaging or ingredient label nearby.",
-                "Сразу свяжитесь с ветеринаром, круглосуточной клиникой или службой pet poison."
-                if _language_code(language) == "ru"
-                else "Contact a veterinarian, urgent care clinic, or pet poison resource right away.",
-                "Не вызывайте рвоту и не давайте человеческие лекарства без указания ветеринара."
-                if _language_code(language) == "ru"
-                else "Do not induce vomiting or give human medication unless a veterinarian tells you to.",
-            ]
+        result_title = str(_localized(issue["pattern"], lang))
+        summary = (
+            f"For {pet_display}, this most closely fits {str(_localized(issue['label'], lang)).lower()}. "
+            + str(_localized(issue["summary"], lang))
+            if lang == "en"
+            else f"Для {pet_display} это больше всего похоже на сценарий «{str(_localized(issue['label'], lang)).lower()}». "
+            + str(_localized(issue["summary"], lang))
         )
-        if severe_hits:
-            actions.append(
-                "Если тяжело дышит, случился коллапс или судороги — езжайте в экстренную клинику прямо сейчас."
-                if _language_code(language) == "ru"
-                else "If breathing is hard, your pet collapses, or seizures occur, go to an emergency clinic now."
+        if already_tried.strip():
+            summary += (
+                " The good next move is not to try harder, but to make the setup clearer."
+                if lang == "en"
+                else " Следующий хороший шаг — не давить сильнее, а сделать саму ситуацию понятнее."
             )
-    elif verdict == "Caution" and acute_case:
-        actions.extend(
-            [
-                "Поставьте на паузу и перепроверьте полный состав, прежде чем давать еще."
-                if _language_code(language) == "ru"
-                else "Pause and double-check the full ingredient list before offering more.",
-                "Если питомец уже съел часть, внимательно наблюдайте в ближайшие несколько часов."
-                if _language_code(language) == "ru"
-                else "If your pet already ate some, monitor closely over the next several hours.",
-                "Свяжитесь с ветеринаром раньше, если питомец маленький, пожилой или с хроническими состояниями."
-                if _language_code(language) == "ru"
-                else "Reach out to your veterinarian sooner if your pet is small, senior, or has chronic conditions.",
-            ]
+        confidence_bucket = _confidence_bucket(description, issue_key, image_context)
+        toolkit_keys = issue.get("toolkit", {}).get(species, [])
+        toolkit_items = _build_toolkit(toolkit_keys, species, lang)
+
+    if image_context and image_context.get("summary"):
+        detected_signals.append(
+            "Photo setup reviewed" if lang == "en" else "Фото окружения разобрано"
         )
-    elif acute_case:
-        actions.extend(
-            [
-                "Давайте только в простом виде и маленькой порцией."
-                if _language_code(language) == "ru"
-                else "Serve it plain and in a small portion.",
-                "Избегайте приправ, соусов, костей и жирных добавок."
-                if _language_code(language) == "ru"
-                else "Avoid heavy seasoning, sauces, bones, and rich extras.",
-                "Остановитесь и пересмотрите решение, если появятся рвота, диарея или необычная вялость."
-                if _language_code(language) == "ru"
-                else "Stop and reassess if vomiting, diarrhea, or unusual tiredness appears.",
-            ]
-        )
-
-    match_labels = [match["label"] for match in toxic_matches + caution_matches + safe_matches]
-    coach_copy = _coach_copy(
-        verdict=verdict,
-        pet_name=pet_name,
-        match_labels=match_labels,
-        toxic_matches=toxic_matches,
-        caution_matches=caution_matches,
-        weight_lbs=weight_lbs,
-        language=language,
-    )
-
-    if not acute_case:
-        actions = list(coach_copy["actions"])
-
-    watch_for = [
-        symptom
-        for match in toxic_matches + caution_matches
-        for symptom in match.get("watch_for", [])
-    ]
-    if moderate_hits:
-        watch_for.extend(moderate_hits)
-    if not watch_for and verdict != "Safe":
-        watch_for.extend(["vomiting", "diarrhea", "lethargy", "drooling"])
-
-    confidence = "high" if toxic_matches or safe_matches else "medium" if caution_matches else "low"
 
     return {
         "verdict": verdict,
-        "badge_label": verdict_tone["label"],
-        "verdict_display": verdict_tone["display"],
-        "badge_color": verdict_tone["color"],
-        "summary": (
-            _make_summary(
-                verdict=verdict,
-                pet_name=pet_name,
-                species=species,
-                amount_label=amount_label,
-                already_ate=already_ate,
-                match_labels=match_labels,
-                unknown_item=unknown_item,
-                language=language,
-            )
-            if acute_case
-            else str(coach_copy["summary"])
-        ),
-        "reasons": _dedupe(reasons),
-        "actions": _dedupe(actions),
-        "watch_for": _dedupe([_localize_symptom(item, language) for item in watch_for]),
-        "alternatives": _safe_alternatives(species, language),
-        "safe_swap": _build_safe_swap(
-            species=species,
-            pet_name=pet_name,
-            verdict=verdict,
-            toxic_matches=toxic_matches,
-            caution_matches=caution_matches,
-            conditions=conditions,
-            allergy_text=allergies,
-            already_ate=already_ate,
-            language=language,
-        ),
-        "matched_labels": _dedupe([_localize_label(label, language) for label in match_labels]),
-        "confidence": confidence,
-        "already_ate": already_ate,
-        "amount_label": amount_label,
-        "symptoms": symptoms,
-        "time_since": time_since,
-        "image_summary": image_summary.strip(),
-        "food_text": food_text.strip(),
-        "pet_name": pet_name,
-        "species": species,
-        "language": _language_code(language),
-        "presentation_mode": "acute" if acute_case else "coach",
-        "actions_title": (
-            "Что делать сейчас" if _language_code(language) == "ru" else "What To Do Now"
-        )
-        if acute_case
-        else str(coach_copy["actions_title"]),
-        "reasons_title": (
-            "Почему такой вердикт" if _language_code(language) == "ru" else "Why This Verdict"
-        )
-        if acute_case
-        else str(coach_copy["reasons_title"]),
-        "watch_title": (
-            "За какими симптомами следить" if _language_code(language) == "ru" else "Symptoms to watch"
-        )
-        if acute_case
-        else str(coach_copy["watch_title"]),
+        "badge_label": badge_label,
+        "result_title": result_title,
+        "summary": summary,
+        "drivers_title": "What may be driving it" if lang == "en" else "Что может это усиливать",
+        "drivers": drivers,
+        "today_title": "What to try today" if lang == "en" else "Что попробовать сегодня",
+        "today_steps": today_steps,
+        "week_title": "7-day plan" if lang == "en" else "План на 7 дней",
+        "week_plan": week_plan,
+        "vet_title": "When to call your vet or trainer" if lang == "en" else "Когда звать ветеринара или тренера",
+        "vet_flags": vet_flags,
+        "toolkit_title": "Helpful setup ideas" if lang == "en" else "Полезные вещи и настройки",
+        "toolkit_items": toolkit_items,
+        "image_summary": image_context.get("summary", "") if image_context else "",
+        "issue_label": issue_display_label(issue_key, species, lang),
+        "confidence": CONFIDENCE_LABELS[lang][confidence_bucket],
+        "detected_signals": [signal for signal in detected_signals if signal],
+        "presentation_mode": "behavior_coach",
+        "pet_name": pet_display,
     }
 
 
-def answer_follow_up(
-    question: str,
-    analysis: dict[str, Any],
-    pet_profile: dict[str, Any],
-    language: str = "en",
-) -> str:
-    normalized_question = _normalize_text(question)
-    pet_name = analysis.get("pet_name") or pet_profile.get("name") or "your pet"
-    language = _language_code(language)
-    watch_for = analysis.get("watch_for") or (
-        ["рвота", "диарея", "вялость", "слюнотечение"]
-        if language == "ru"
-        else ["vomiting", "diarrhea", "lethargy", "drooling"]
-    )
+def answer_follow_up(question: str, analysis: dict[str, Any], language: str = "en") -> str:
+    lang = _language_code(language)
+    normalized = _normalize_text(question)
 
-    if not normalized_question:
-        return (
-            "Спроси про размер порции, симптомы для наблюдения или более безопасные варианты, и я отвечу коротко и по делу."
-            if language == "ru"
-            else "Ask about portion size, symptoms to watch for, or safer alternatives and I will keep it focused."
+    if has_openai_key():
+        client = OpenAI()
+        prompt = (
+            "You are a calm pet behavior coach. Answer the user's follow-up using only the supplied context. "
+            "Do not diagnose. Keep it practical and brief. "
+            f"Write in {'Russian' if lang == 'ru' else 'English'}.\n\n"
+            f"Context: {json.dumps(analysis, ensure_ascii=False)}\n"
+            f"Question: {question}"
         )
+        try:
+            response = client.responses.create(model=MODEL_NAME, input=prompt)
+            output = getattr(response, "output_text", "") or ""
+            if output.strip():
+                return output.strip()
+        except Exception:
+            pass
 
-    if _contains_any(normalized_question, ["how much", "portion", "bite", "small amount", "сколько", "порц", "кус", "немного"]):
-        return (
-            f"Для {pet_name} количество очень важно. Маленький лизок и полноценная порция — это разные уровни риска, а маленькие питомцы обычно попадают в проблему быстрее. Если точное количество неизвестно, лучше считать ситуацию более рискованной."
-            if language == "ru"
-            else f"For {pet_name}, size matters a lot. A tiny lick can be very different from a full serving, and smaller pets tend to get into trouble faster. When the exact amount is unclear, treat the situation more cautiously."
-        )
-
-    if _contains_any(normalized_question, ["symptom", "watch", "look for", "симптом", "наблюд", "следить"]):
-        return (
-            f"Наблюдай за такими признаками: {_join_labels(watch_for, language)}. Если симптомы усиливаются или кажутся необычными, свяжись с ветеринаром."
-            if language == "ru"
-            else f"Keep an eye out for: {_join_labels(watch_for, language)}. If symptoms escalate or feel unusual, contact a veterinarian."
-        )
-
-    if _contains_any(normalized_question, ["vet", "clinic", "emergency", "er", "call", "вет", "клиник", "экстр", "позвон", "врач"]):
-        action = analysis.get("actions", [])
-        return (
-            f"Мой самый безопасный вывод: {action[0]} {action[1] if len(action) > 1 else ''}".strip()
-            + " Приложение помогает быстро сориентироваться, но срочные случаи должен вести ветеринар."
-            if language == "ru"
-            else f"My safest read is: {action[0]} {action[1] if len(action) > 1 else ''}".strip()
-            + " This app supports quick decisions, but a veterinarian should guide urgent cases."
-        )
-
-    if _contains_any(normalized_question, ["instead", "alternative", "safer", "treat", "вместо", "альтернатив", "безопасн", "лакомств"]):
-        return (
-            f"Более безопасные идеи для {pet_name}: {_join_labels(analysis.get('alternatives', []), language)}."
-            if language == "ru"
-            else f"Safer ideas for {pet_name}: {_join_labels(analysis.get('alternatives', []), language)}."
-        )
-
-    if _contains_any(normalized_question, ["buy", "shop", "order", "куп", "заказ", "магазин"]):
-        safe_swap = analysis.get("safe_swap", {})
-        items = [item["title"] for item in safe_swap.get("items", [])]
-        if items:
+    if any(word in normalized for word in ["vet", "trainer", "врач", "вет", "тренер"]):
+        prefix = "Watch for this: " if lang == "en" else "Смотри вот за чем: "
+        return prefix + " ".join(analysis.get("vet_flags", [])[:2])
+    if any(word in normalized for word in ["today", "start", "сегодня", "начать", "с чего"]):
+        prefix = "Start here: " if lang == "en" else "Начни вот с этого: "
+        return prefix + " ".join(analysis.get("today_steps", [])[:2])
+    if any(word in normalized for word in ["week", "progress", "сколько", "когда", "прогресс", "недел"]):
+        prefix = "For the next week: " if lang == "en" else "На ближайшую неделю: "
+        return prefix + " ".join(analysis.get("week_plan", [])[:2])
+    if any(word in normalized for word in ["buy", "tool", "product", "что купить", "вещ", "товар"]):
+        toolkit = analysis.get("toolkit_items", [])
+        if toolkit:
+            titles = ", ".join(item["title"] for item in toolkit[:3])
             return (
-                f"Если нужен более чистый вариант, начни с {_join_labels(items[:3], language)}. Pet Help AI показывает это как идеи для поиска, а не как медицинские гарантии, поэтому всегда проверяй состав."
-                if language == "ru"
-                else f"If you want a cleaner replacement, start with {_join_labels(items[:3], language)}. Pet Help AI treats those as search ideas, not guaranteed medical recommendations, so always double-check labels."
+                f"I would start with: {titles}."
+                if lang == "en"
+                else f"Я бы начал с этого: {titles}."
             )
 
-    if analysis.get("verdict") == "Safe":
-        return (
-            f"Пока это выглядит как относительно низкий риск, но держи продукт простым, порцию маленькой и остановись, если у {pet_name} появится расстройство желудка."
-            if language == "ru"
-            else f"This still looks relatively low risk, but keep it plain, keep the portion small, and stop if {pet_name} shows stomach upset."
-        )
-
-    if analysis.get("verdict") == "Avoid":
-        return (
-            f"Так как это попало в более рискованную категорию, я бы не ждал длинного списка симптомов перед обращением к ветеринару. Самый безопасный следующий шаг для {pet_name} — быстро получить профессиональную помощь."
-            if language == "ru"
-            else f"Because this landed in the higher-risk bucket, I would not wait for a long list of symptoms before asking a vet. The safest next step is quick professional guidance for {pet_name}."
-        )
-
     return (
-        f"Это серая зона. Я бы еще раз проверил состав, не давал больше и наблюдал за {pet_name}, если что-то кажется необычным."
-        if language == "ru"
-        else f"This is a gray-zone situation. I would double-check the label, avoid giving more, and monitor {pet_name} closely for any change in energy, stomach comfort, or breathing."
+        f"The short version: {analysis.get('summary', '')} Start with {analysis.get('today_steps', ['one calmer easier rep'])[0]}"
+        if lang == "en"
+        else f"Коротко: {analysis.get('summary', '')} Начни с этого: {analysis.get('today_steps', ['одного более спокойного повтора'])[0]}"
     )
 
 
-def get_care_tips(pet_profile: dict[str, Any], language: str = "en") -> dict[str, list[str]]:
-    species = (pet_profile.get("species") or "Dog").strip().lower()
-    species = "cat" if species.startswith("cat") else "dog"
-    weight_lbs = float(pet_profile.get("weight_lbs") or 0)
-    age_years = float(pet_profile.get("age_years") or 0)
-    conditions = {condition.strip().lower() for condition in pet_profile.get("conditions", []) if condition}
-    language = _language_code(language)
+def get_routine_guide(profile: dict[str, Any], language: str = "en") -> dict[str, Any]:
+    lang = _language_code(language)
+    species = profile.get("species", "dog")
+    age_years = float(profile.get("age_years") or 0)
+    conditions = profile.get("conditions", []) or []
+    triggers = (profile.get("triggers") or "").strip()
 
-    if language == "ru":
-        daily_choices = (
-            [
-                "простая приготовленная курица или индейка маленькими кусочками",
-                "простая тыква или простой рис для мягкого режима",
-                "готовые кошачьи лакомства с коротким составом",
-            ]
-            if species == "cat"
-            else [
-                "простая приготовленная курица или индейка",
-                "кусочки моркови или огурца",
-                "готовые собачьи лакомства с простым составом",
-            ]
-        )
-
-        red_flags = [
-            "шоколад, ксилит, виноград и изюм",
-            "лук, чеснок и сильно приправленные остатки еды",
-            "алкоголь, кофеин, edible-продукты с каннабисом и человеческие лекарства",
+    if species == "cat":
+        sections = [
+            {
+                "title": "Morning reset" if lang == "en" else "Утро",
+                "items": [
+                    "Start with a short play-hunt-eat sequence."
+                    if lang == "en"
+                    else "Начинай утро с короткой цепочки игра-охота-еда.",
+                    "Check litter boxes before the house gets busy."
+                    if lang == "en"
+                    else "Проверь лотки до того, как дом станет шумным.",
+                ],
+            },
+            {
+                "title": "Daytime stability" if lang == "en" else "День",
+                "items": [
+                    "Keep vertical space and quiet retreat spots available."
+                    if lang == "en"
+                    else "Держи доступными вертикальные точки и тихие места для укрытия.",
+                    "Scatter calm interaction through the day instead of one big social push."
+                    if lang == "en"
+                    else "Распредели спокойный контакт по дню вместо одного большого социального напора.",
+                ],
+            },
+            {
+                "title": "Evening settle" if lang == "en" else "Вечер",
+                "items": [
+                    "Use a final low-key play burst before dinner or bedtime."
+                    if lang == "en"
+                    else "Используй последнюю спокойную игровую вспышку перед ужином или сном.",
+                    "Protect a quiet wind-down hour."
+                    if lang == "en"
+                    else "Сохрани тихий час на завершение дня.",
+                ],
+            },
         ]
     else:
-        daily_choices = (
-            [
-                "plain cooked chicken or turkey in small bites",
-                "plain pumpkin or plain rice for a bland reset",
-                "commercial cat treats with short ingredient lists",
-            ]
-            if species == "cat"
-            else [
-                "plain cooked chicken or turkey",
-                "carrot or cucumber pieces",
-                "commercial dog treats with simple ingredients",
-            ]
-        )
-
-        red_flags = [
-            "chocolate, xylitol, grapes or raisins",
-            "onion, garlic, and heavily seasoned leftovers",
-            "alcohol, caffeine, cannabis edibles, and human medicines",
+        sections = [
+            {
+                "title": "Morning reset" if lang == "en" else "Утро",
+                "items": [
+                    "Start with sniffing and calm movement before asking for precision."
+                    if lang == "en"
+                    else "Начинай день с нюхания и спокойного движения до точных задач.",
+                    "Use one easy win early so the day starts successful."
+                    if lang == "en"
+                    else "Дай одну простую успешную задачу в начале дня.",
+                ],
+            },
+            {
+                "title": "Midday outlet" if lang == "en" else "День",
+                "items": [
+                    "Mix decompression with one short training rep, not a marathon session."
+                    if lang == "en"
+                    else "Смешивай декомпрессию с одним коротким повтором обучения, а не с марафоном.",
+                    "Offer a legal chew, lick, or forage task before restless hours."
+                    if lang == "en"
+                    else "Предлагай разрешенное жевание, облизывание или поиск еды до беспокойных часов.",
+                ],
+            },
+            {
+                "title": "Evening settle" if lang == "en" else "Вечер",
+                "items": [
+                    "Lower stimulation in the last hour and keep the pattern predictable."
+                    if lang == "en"
+                    else "Снижай стимуляцию в последний час и делай рутину предсказуемой.",
+                    "Measure success by easier settling, not by complete stillness."
+                    if lang == "en"
+                    else "Смотри на более легкое успокоение, а не на полную неподвижность.",
+                ],
+            },
         ]
 
-    personalization: list[str] = []
-    if weight_lbs and weight_lbs < 15:
-        personalization.append(
-            "Маленькие питомцы могут быстрее попасть в проблему с тем же количеством еды, поэтому держите угощения совсем маленькими."
-            if language == "ru"
-            else "Small pets can get into trouble faster with the same amount of food, so keep treats tiny."
+    weekly_focus = [
+        "Track what happens right before the behavior and how long recovery takes."
+        if lang == "en"
+        else "Отмечай, что происходит прямо перед поведением и сколько длится восстановление.",
+        "Change one variable at a time so the pattern stays readable."
+        if lang == "en"
+        else "Меняй по одному параметру за раз, чтобы паттерн оставался понятным.",
+    ]
+
+    if age_years >= 8 or "senior_pet" in conditions:
+        weekly_focus.append(
+            "Because this is a senior pet, watch for pain, stiffness, sleep shifts, and sudden confusion."
+            if lang == "en"
+            else "Так как питомец пожилой, следи за болью, скованностью, изменением сна и внезапной спутанностью."
         )
-    if age_years >= 10:
-        personalization.append(
-            "Пожилые питомцы часто хуже переносят тяжелую еду, поэтому простой и мягкий вариант обычно безопаснее."
-            if language == "ru"
-            else "Senior pets often tolerate rich food less well, so bland and simple is the safer default."
+    if "noise_sensitivity" in conditions:
+        weekly_focus.append(
+            "Build in quieter recovery windows after noisy parts of the day."
+            if lang == "en"
+            else "После шумных частей дня закладывай более тихие окна для восстановления."
         )
-    if "pancreatitis" in conditions:
-        personalization.append(
-            "Раз в профиле указан панкреатит, жирные остатки со стола лучше исключить."
-            if language == "ru"
-            else "Because pancreatitis is on the profile, greasy table scraps should stay off the menu."
+    if "multi_pet_home" in conditions:
+        weekly_focus.append(
+            "Check whether tension rises around doors, food, beds, or owner attention."
+            if lang == "en"
+            else "Проверь, не растет ли напряжение возле дверей, еды, лежанок или внимания хозяина."
         )
-    if "kidney disease" in conditions:
-        personalization.append(
-            "Для чувствительных почек лучше подходят менее соленые варианты."
-            if language == "ru"
-            else "Lower-salt options are a better fit for kidney-sensitive pets."
-        )
-    if "diabetes" in conditions:
-        personalization.append(
-            "Сладкие перекусы плохо подходят питомцам с диабетом, даже если это не явный токсин."
-            if language == "ru"
-            else "Sugary snacks are a poor fit for diabetic pets even when they are not outright toxic."
-        )
-    if not personalization:
-        personalization.append(
-            "Обычно безопаснее всего начинать с простой еды без приправ и маленьких кусочков."
-            if language == "ru"
-            else "Plain, unseasoned, bite-sized foods are usually the safest place to start."
+    if triggers:
+        weekly_focus.append(
+            f"Known triggers to design around: {triggers}."
+            if lang == "en"
+            else f"Триггеры, которые уже стоит учитывать в плане: {triggers}."
         )
 
     return {
-        "daily_choices": daily_choices,
-        "red_flags": red_flags,
-        "personalization": personalization,
+        "title": "Routine plan" if lang == "en" else "Рутинный план",
+        "summary": (
+            "Use this as a calmer baseline and then layer issue-specific coaching on top."
+            if lang == "en"
+            else "Используй это как спокойную базу, а сверху уже добавляй точечный поведенческий план."
+        ),
+        "sections": sections,
+        "weekly_title": "Weekly focus" if lang == "en" else "Фокус недели",
+        "weekly_focus": weekly_focus,
     }

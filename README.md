@@ -5,10 +5,10 @@ Streamlit MVP for `pethelpai.com`.
 ## What is included
 
 - pet profile editor for dog or cat
-- food safety checker with `Safe / Caution / Avoid`
-- emergency-first flow for "my pet already ate this"
-- optional AI image understanding when `OPENAI_API_KEY` is available
-- simple history and personalized care guide
+- AI behavior coach for common dog and cat behavior issues
+- same-day action plan plus 7-day routine guidance
+- optional AI image understanding of the pet setup when `OPENAI_API_KEY` is available
+- simple history and personalized routine plan
 
 ## Run locally
 
@@ -25,7 +25,7 @@ export OPENAI_API_KEY="your-key"
 export OPENAI_MODEL="gpt-4.1-mini"
 ```
 
-Without `OPENAI_API_KEY`, the app still works with manual ingredient descriptions and text input.
+Without `OPENAI_API_KEY`, the app still works with manual descriptions and behavior text input.
 
 ## Logo placement
 
