@@ -466,6 +466,36 @@ def load_logo_data_uri() -> str | None:
     return None
 
 
+def uploaded_image_to_data_uri(uploaded_file: object) -> str:
+    mime = getattr(uploaded_file, "type", None) or "image/png"
+    payload = uploaded_file.getvalue() if hasattr(uploaded_file, "getvalue") else uploaded_file.getbuffer()
+    encoded = base64.b64encode(bytes(payload)).decode("ascii")
+    return f"data:{mime};base64,{encoded}"
+
+
+def image_bytes_from_source(source: str | None) -> bytes | None:
+    if not source:
+        return None
+    if source.startswith("data:image/") and "," in source:
+        try:
+            return base64.b64decode(source.split(",", 1)[1])
+        except Exception:
+            return None
+    file_path = Path(source)
+    if file_path.exists():
+        try:
+            return file_path.read_bytes()
+        except OSError:
+            return None
+    return None
+
+
+def render_avatar_image(source: str | None, width: int = 180) -> None:
+    image_bytes = image_bytes_from_source(source)
+    if image_bytes:
+        st.image(image_bytes, width=width)
+
+
 def inject_local_overrides() -> None:
     st.markdown(
         """
@@ -749,7 +779,7 @@ def save_pet_form(user_id: int, language: str, pet: dict[str, object] | None = N
     if submitted:
         avatar_url = pet["avatar_url"] if pet else None
         if avatar is not None:
-            avatar_url = save_uploaded_file(avatar, user_id, "avatar")
+            avatar_url = uploaded_image_to_data_uri(avatar)
         payload = {
             "name": name,
             "species": species,
@@ -859,17 +889,21 @@ def render_dashboard(user: dict[str, object], subscription: dict[str, object], p
         pet_upcoming = [event for event in upcoming if event["pet_id"] == pet["id"]]
         records = pet_recent_records(int(pet["id"]), list_care_events(int(user["id"]), pet_id=int(pet["id"])), health_logs)
         next_item = pet_upcoming[0] if pet_upcoming else None
-        st.markdown(
-            f"""
-            <div class="pet-card">
-                <h4>{escape(str(pet['name']))}</h4>
-                <div class="pet-meta">{escape(label(SPECIES_LABELS, str(pet['species']), language))} • {escape(pet_age_display(pet.get('birth_date'), pet.get('age_text'), language))}</div>
-                <div><strong>{escape(tr('pet_card_upcoming', language))}:</strong> {escape(next_item['title']) if next_item else '—'}</div>
-                <div><strong>{escape(tr('pet_card_spend', language))}:</strong> ${pet_month_expense(expenses, int(pet['id'])):.0f}</div>
-            </div>
-            """,
-            unsafe_allow_html=True,
-        )
+        preview_col, detail_col = st.columns([1, 4])
+        with preview_col:
+            render_avatar_image(str(pet.get("avatar_url") or ""), width=90)
+        with detail_col:
+            st.markdown(
+                f"""
+                <div class="pet-card">
+                    <h4>{escape(str(pet['name']))}</h4>
+                    <div class="pet-meta">{escape(label(SPECIES_LABELS, str(pet['species']), language))} • {escape(pet_age_display(pet.get('birth_date'), pet.get('age_text'), language))}</div>
+                    <div><strong>{escape(tr('pet_card_upcoming', language))}:</strong> {escape(next_item['title']) if next_item else '—'}</div>
+                    <div><strong>{escape(tr('pet_card_spend', language))}:</strong> ${pet_month_expense(expenses, int(pet['id'])):.0f}</div>
+                </div>
+                """,
+                unsafe_allow_html=True,
+            )
         if records:
             for record in records[:3]:
                 st.caption(f"{record['title']} • {format_datetime(record['timestamp'], language)}")
@@ -922,8 +956,7 @@ def render_pets_page(user: dict[str, object], subscription: dict[str, object], p
         )
         pet = pet_map[st.session_state.selected_pet_id]
 
-        if pet.get("avatar_url") and Path(str(pet["avatar_url"])).exists():
-            st.image(str(pet["avatar_url"]), width=180)
+        render_avatar_image(str(pet.get("avatar_url") or ""), width=180)
 
         c1, c2, c3 = st.columns(3)
         c1.metric(tr("species", language), label(SPECIES_LABELS, str(pet["species"]), language))
