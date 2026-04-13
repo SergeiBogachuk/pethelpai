@@ -4,11 +4,15 @@ Streamlit MVP for `pethelpai.com`.
 
 ## What is included
 
-- pet profile editor for dog or cat
-- AI behavior coach for common dog and cat behavior issues
-- same-day action plan plus 7-day routine guidance
-- optional AI image understanding of the pet setup when `OPENAI_API_KEY` is available
-- simple history and personalized routine plan
+- registration, sign-in, and password reset flow
+- user profile with timezone and notification preferences
+- pet records for dogs, cats, and other pets
+- care calendar with recurring events and reminder presets
+- health log, medications, weight tracking, and expenses
+- document storage for Premium users
+- subscription screen with free, trial, and premium logic
+- basic admin dashboard with users, subscriptions, analytics, and support tickets
+- local SQLite persistence for fast MVP iteration
 
 ## Run locally
 
@@ -18,14 +22,7 @@ From the workspace root:
 python3 -m streamlit run pethelpai/app.py
 ```
 
-Optional environment variables:
-
-```bash
-export OPENAI_API_KEY="your-key"
-export OPENAI_MODEL="gpt-4.1-mini"
-```
-
-Without `OPENAI_API_KEY`, the app still works with manual descriptions and behavior text input.
+The app creates its local SQLite database automatically under `data/`.
 
 ## Logo placement
 
@@ -51,19 +48,25 @@ This workspace contains multiple unrelated projects, so the cleanest production 
 2. Push only these files into that repo root:
    - `app.py`
    - `engine.py`
+   - `storage.py`
    - `styles.py`
    - `requirements.txt`
    - `render.yaml`
    - `.gitignore`
 3. Create a Render web service from that GitHub repo.
-4. Add `OPENAI_API_KEY` in Render environment variables.
-5. Connect the custom domain `pethelpai.com` in Render.
+4. Connect the custom domain `pethelpai.com` in Render.
 
 ## Render notes
 
 - Build command: already defined in `render.yaml`
 - Start command: already defined in `render.yaml`
 - Custom domain: add it in Render first, then copy the DNS records Render gives you into your domain provider
+
+## Current MVP notes
+
+- Notifications are implemented as in-app reminders generated from event and medication schedules.
+- Subscription and payment logic is modeled inside the app for MVP testing.
+- The next production step would be moving auth, billing, notifications, and file storage to dedicated services.
 
 ## Production recommendation
 

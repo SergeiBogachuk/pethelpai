@@ -1,434 +1,665 @@
 from __future__ import annotations
 
 import base64
-from datetime import datetime
+from datetime import date, datetime, time
 from html import escape
 from pathlib import Path
-from uuid import uuid4
 
+import pandas as pd
 import streamlit as st
 
 from engine import (
-    analyze_behavior,
-    answer_follow_up,
-    behavior_issue_choices,
-    extract_behavior_context_from_image,
-    get_routine_guide,
-    has_openai_key,
+    DOCUMENT_TYPE_LABELS,
+    DOCUMENT_TYPES,
+    EVENT_TYPE_LABELS,
+    EVENT_TYPES,
+    EXPENSE_CATEGORIES,
+    EXPENSE_CATEGORY_LABELS,
+    LOG_TYPE_LABELS,
+    LOG_TYPES,
+    MEDICATION_FREQUENCIES,
+    MEDICATION_FREQUENCY_LABELS,
+    RECURRENCE_LABELS,
+    RECURRENCE_OPTIONS,
+    REMINDER_LABELS,
+    REMINDER_OPTIONS,
+    SEVERITY_LABELS,
+    SEVERITY_OPTIONS,
+    SEX_LABELS,
+    SEX_OPTIONS,
+    SPECIES_LABELS,
+    SPECIES_OPTIONS,
+    event_status,
+    format_date,
+    format_datetime,
+    label,
+    language_code,
+    next_due_text,
+    pet_age_display,
+    pet_month_expense,
+    pet_recent_records,
+    smart_recommendations,
+    starter_calendar_template,
+    status_badge,
+    upcoming_warning_level,
+)
+from storage import (
+    activate_subscription,
+    add_expense,
+    add_weight_log,
+    admin_users,
+    analytics_summary,
+    authenticate_user,
+    cancel_subscription,
+    connect,
+    count_active_events,
+    count_user_pets,
+    create_care_event,
+    create_document,
+    create_health_log,
+    create_medication_course,
+    create_pet,
+    create_support_ticket,
+    create_user,
+    expense_summary,
+    free_limits,
+    get_pet,
+    get_subscription,
+    get_user,
+    init_db,
+    list_care_events,
+    list_documents,
+    list_expenses,
+    list_health_logs,
+    list_medication_courses,
+    list_notifications,
+    list_pets,
+    list_support_tickets,
+    list_today_tasks,
+    list_upcoming_events,
+    list_weight_logs,
+    log_product_event,
+    mark_event_completed,
+    mark_event_missed,
+    mark_medication_given,
+    mark_notification_read,
+    monthly_expense_rows,
+    refresh_subscription_state,
+    save_uploaded_file,
+    start_trial,
+    subscription_is_premium,
+    update_password,
+    update_pet,
+    update_user_settings,
 )
 from styles import inject_styles
 
 
-NEW_PROFILE = "__new__"
 ASSETS_DIR = Path(__file__).parent / "assets"
 LOGO_CANDIDATES = ["logo.svg", "logo.png", "logo.webp", "logo.jpg", "logo.jpeg"]
-LANGUAGE_OPTIONS = ["ru", "en"]
-CONDITION_OPTIONS = [
-    "recent_adoption",
-    "rescue_history",
-    "senior_pet",
-    "pain_or_mobility",
-    "noise_sensitivity",
-    "multi_pet_home",
+TIMEZONE_OPTIONS = [
+    "America/New_York",
+    "America/Chicago",
+    "America/Denver",
+    "America/Los_Angeles",
+    "Europe/Berlin",
+    "Europe/London",
 ]
-WHEN_OPTIONS = [
-    "home_alone",
-    "guests",
-    "walks",
-    "car",
-    "night",
-    "anytime",
-    "litter_box",
-    "mealtime",
-    "new_home",
+NAV_ITEMS = [
+    "dashboard",
+    "pets",
+    "calendar",
+    "health",
+    "expenses",
+    "documents",
+    "subscription",
+    "settings",
 ]
-INTENSITY_OPTIONS = ["low", "medium", "high"]
-DURATION_OPTIONS = ["sudden", "days", "weeks", "months"]
 
-UI_TEXT = {
+TEXT = {
     "en": {
+        "app_tagline": "Your pet care dashboard, reminders, records, and spending in one calm place.",
         "language": "Language",
-        "language_ru": "Русский",
-        "language_en": "English",
-        "tagline": "AI behavior coach for calmer pets and calmer homes",
-        "active_pet": "Active pet",
-        "draft_pet": "Draft pet profile",
-        "pet_profile": "Pet profile",
-        "profile_hint": "Keep this simple. We only use it to personalize behavior guidance.",
-        "profile_picker": "Choose a profile",
-        "new_profile": "New draft profile",
+        "lang_ru": "Русский",
+        "lang_en": "English",
+        "login": "Sign in",
+        "register": "Register",
+        "reset": "Reset password",
+        "email": "Email",
+        "password": "Password",
+        "name": "Name",
+        "timezone": "Time zone",
+        "login_button": "Sign in",
+        "register_button": "Create account",
+        "reset_button": "Update password",
+        "logout": "Log out",
+        "auth_error": "Wrong email or password.",
+        "register_ok": "Account created. You can start using the app now.",
+        "reset_ok": "Password updated.",
+        "reset_hint": "This MVP uses a direct reset flow instead of email delivery.",
+        "nav_dashboard": "Dashboard",
+        "nav_pets": "Pets",
+        "nav_calendar": "Calendar",
+        "nav_health": "Health",
+        "nav_expenses": "Expenses",
+        "nav_documents": "Documents",
+        "nav_subscription": "Subscription",
+        "nav_settings": "Settings",
+        "nav_admin": "Admin",
+        "plan": "Plan",
+        "free": "Free",
+        "premium": "Premium",
+        "trial": "Trial",
+        "dashboard_title": "Dashboard",
+        "today_tasks": "Today's tasks",
+        "upcoming": "Upcoming reminders",
+        "notifications": "Notifications",
+        "recommendations": "Smart recommendations",
+        "pets_overview": "Pets overview",
+        "quick_actions": "Quick actions",
+        "add_pet": "Add pet",
+        "add_event": "Add event",
+        "add_log": "Add symptom",
+        "add_expense": "Add expense",
+        "onboarding_title": "Start with your first pet",
+        "onboarding_copy": "The first useful path is simple: add a pet, create 1-2 care events, then let the app remind you.",
+        "pet_title": "Pets",
+        "pet_select": "Choose pet",
+        "pet_form_title": "Pet profile",
+        "pet_saved": "Pet saved.",
+        "starter_calendar": "Add starter calendar",
+        "starter_added": "Starter events added.",
+        "pet_photo": "Photo",
         "pet_name": "Pet name",
-        "pet_default_name": "My pet",
         "species": "Species",
-        "dog": "Dog",
-        "cat": "Cat",
-        "age_years": "Age (years)",
-        "weight_lb": "Weight (lb)",
-        "breed_or_mix": "Breed or mix",
-        "triggers": "Known triggers",
-        "triggers_placeholder": "Doorbell, vacuum, strangers, nighttime, car rides",
-        "conditions": "Context to keep in mind",
-        "save_profile": "Save profile",
-        "update_profile": "Update profile",
-        "delete_pet": "Delete saved profile",
-        "profile_saved": "Profile saved for {name}.",
-        "profile_deleted": "Saved profile removed.",
-        "behavior_tab": "Behavior Coach",
-        "routine_tab": "Routine Plan",
-        "history_tab": "History",
-        "coach_title": "Behavior Coach",
-        "coach_caption": "Describe what is happening, when it shows up, and how intense it feels. The app will give you a calmer same-day plan instead of a panic answer.",
-        "issue_type": "What feels closest to the problem?",
-        "description": "What is happening?",
-        "description_placeholder": "Example: He barks and scratches the door when I leave. It starts after I pick up my keys and gets worse in 2-3 minutes.",
-        "when_happens": "When does it usually happen?",
-        "intensity": "Intensity",
-        "duration": "How long has this been going on?",
-        "optional_details": "Optional details",
-        "already_tried": "What have you already tried?",
-        "tried_placeholder": "Treats, longer walks, crate, ignoring, white noise, more play...",
-        "upload_scene": "Add a photo of the setup (optional)",
-        "photo_note": "A scene photo helps the app read the environment. If you only upload a photo, OPENAI_API_KEY needs to be connected.",
-        "analyze_behavior": "Build my plan",
-        "need_input": "Add a short description or a setup photo first.",
-        "photo_only_warning": "For photo-only coaching, connect OPENAI_API_KEY or type a short description under the photo.",
-        "reading_photo": "Reading the setup photo...",
-        "result": "Result",
-        "empty_title": "Start with one behavior problem.",
-        "empty_copy": "You will get a likely pattern, same-day steps, a 7-day plan, and guidance on when to bring in a vet or trainer.",
-        "detected_signals": "Signals I used",
-        "image_read_title": "What I notice in the setup",
-        "confidence": "Confidence: {value}",
-        "ask_follow_up": "Ask a follow-up",
-        "question": "Question",
-        "follow_up_placeholder": "What should I do first tonight?",
-        "answer_follow_up": "Answer follow-up",
-        "routine_title": "Routine Plan",
-        "routine_caption": "A simple baseline for calmer days. Use this first, then layer the issue-specific plan on top.",
-        "weekly_focus": "Weekly focus",
-        "history_title": "No coaching sessions yet",
-        "history_copy": "Your recent behavior plans will show up here after the first run.",
-        "clear_history": "Clear history",
-        "history_empty": "Nothing saved yet",
-        "history_behavior": "Behavior Coach",
-        "help_note": "Pet Help AI is a coach, not a diagnosis tool. Sudden changes, pain signs, trouble urinating, or severe distress deserve veterinary input fast.",
-        "chewy": "Chewy",
-        "amazon": "Amazon",
+        "breed": "Breed",
+        "birth_date": "Birth date",
+        "birth_date_known": "I know the birth date",
+        "age_text": "Age text (optional)",
+        "sex": "Sex",
+        "weight": "Weight",
+        "sterilized": "Sterilized / neutered",
+        "color": "Color / special marks",
+        "allergies": "Allergies",
+        "chronic_conditions": "Chronic conditions",
+        "chip_number": "Chip number",
+        "clinic_name": "Clinic",
+        "vet_name": "Doctor",
+        "save_pet": "Save pet",
+        "update_pet": "Update pet",
+        "pet_card_upcoming": "Next important action",
+        "pet_card_spend": "This month spend",
+        "pet_card_records": "Recent records",
+        "calendar_title": "Care calendar",
+        "calendar_copy": "Keep one clean place for vaccines, treatments, grooming, food restocks, and custom reminders.",
+        "event_type": "Event type",
+        "event_title": "Title",
+        "event_description": "Note",
+        "scheduled_date": "Date",
+        "scheduled_time": "Time",
+        "recurrence": "Repeat",
+        "reminders": "Reminders",
+        "create_event": "Create event",
+        "event_saved": "Event added.",
+        "complete": "Mark done",
+        "miss": "Mark missed",
+        "health_title": "Health and care log",
+        "disclaimer": "This service does not diagnose. If symptoms worry you, talk to a veterinarian.",
+        "log_type": "Log type",
+        "symptom": "Symptom",
+        "severity": "Severity",
+        "description": "Description",
+        "appetite": "Appetite",
+        "activity": "Activity",
+        "stool": "Stool / vomiting",
+        "mood": "Mood",
+        "attachment": "Photo or video",
+        "save_log": "Save log",
+        "log_saved": "Health log added.",
+        "medication_title": "Medications and procedures",
+        "medicine_name": "Medication name",
+        "dosage": "Dosage",
+        "frequency": "Frequency",
+        "start_date": "Start date",
+        "end_date": "End date",
+        "course_has_end": "This course has an end date",
+        "note": "Comment",
+        "save_course": "Save course",
+        "course_saved": "Medication course added.",
+        "mark_given": "I gave it",
+        "weight_title": "Weight tracking",
+        "weight_date": "Measurement date",
+        "weight_note": "Weight note",
+        "save_weight": "Save weight",
+        "weight_saved": "Weight entry added.",
+        "expenses_title": "Expenses",
+        "category": "Category",
+        "amount": "Amount",
+        "currency": "Currency",
+        "spent_at": "Spent at",
+        "save_expense": "Save expense",
+        "expense_saved": "Expense added.",
+        "documents_title": "Documents",
+        "document_type": "Document type",
+        "document_note": "Document note",
+        "upload_document": "Upload document",
+        "document_saved": "Document added.",
+        "subscription_title": "Subscription",
+        "trial_action": "Start 7-day trial",
+        "monthly_action": "Activate monthly premium",
+        "yearly_action": "Activate yearly premium",
+        "cancel_action": "Cancel subscription",
+        "subscription_saved": "Subscription updated.",
+        "settings_title": "Settings",
+        "notifications_email": "Email reminders",
+        "notifications_in_app": "In-app reminders",
+        "notifications_push": "Push reminders",
+        "save_settings": "Save settings",
+        "settings_saved": "Settings updated.",
+        "new_password": "New password",
+        "support_title": "Support",
+        "support_subject": "Subject",
+        "support_message": "Message",
+        "send_ticket": "Send ticket",
+        "ticket_saved": "Support ticket created.",
+        "admin_title": "Admin",
+        "users": "Users",
+        "subscriptions": "Subscriptions",
+        "analytics": "Analytics",
+        "support": "Support",
+        "paywall_title": "Unlock Premium",
+        "paywall_copy": "Premium opens multiple pets, unlimited reminders, document storage, full history, analytics, and family-ready workflows.",
+        "second_pet_lock": "Free allows 1 pet. Premium unlocks multi-pet care.",
+        "event_limit_lock": "Free includes a limited calendar. Premium unlocks unlimited recurring events.",
+        "document_lock": "Document storage is available on Premium.",
+        "no_data": "Nothing here yet.",
+        "next_charge": "Next renewal",
+        "status": "Status",
+        "month_total": "This month",
+        "all_time_total": "All time",
+        "open_paywall": "See plans",
+        "value_line": "Do not miss important care. Keep everything for your pet in one place.",
     },
     "ru": {
+        "app_tagline": "Личный кабинет питомца, напоминания, история ухода и расходы в одном спокойном месте.",
         "language": "Язык",
-        "language_ru": "Русский",
-        "language_en": "English",
-        "tagline": "AI-коуч по поведению для более спокойных питомцев и более спокойного дома",
-        "active_pet": "Активный питомец",
-        "draft_pet": "Черновик профиля",
-        "pet_profile": "Профиль питомца",
-        "profile_hint": "Держим это простым. Профиль нужен только для персонализации поведенческого плана.",
-        "profile_picker": "Выбери профиль",
-        "new_profile": "Новый черновик",
-        "pet_name": "Имя питомца",
-        "pet_default_name": "Мой питомец",
+        "lang_ru": "Русский",
+        "lang_en": "English",
+        "login": "Вход",
+        "register": "Регистрация",
+        "reset": "Сброс пароля",
+        "email": "Email",
+        "password": "Пароль",
+        "name": "Имя",
+        "timezone": "Часовой пояс",
+        "login_button": "Войти",
+        "register_button": "Создать аккаунт",
+        "reset_button": "Обновить пароль",
+        "logout": "Выйти",
+        "auth_error": "Неверный email или пароль.",
+        "register_ok": "Аккаунт создан. Можно сразу пользоваться приложением.",
+        "reset_ok": "Пароль обновлен.",
+        "reset_hint": "В этом MVP используется прямой сброс пароля без отправки email.",
+        "nav_dashboard": "Дашборд",
+        "nav_pets": "Питомцы",
+        "nav_calendar": "Календарь",
+        "nav_health": "Здоровье",
+        "nav_expenses": "Расходы",
+        "nav_documents": "Документы",
+        "nav_subscription": "Подписка",
+        "nav_settings": "Настройки",
+        "nav_admin": "Админка",
+        "plan": "Тариф",
+        "free": "Free",
+        "premium": "Premium",
+        "trial": "Триал",
+        "dashboard_title": "Дашборд",
+        "today_tasks": "Задачи на сегодня",
+        "upcoming": "Ближайшие напоминания",
+        "notifications": "Уведомления",
+        "recommendations": "Умные рекомендации",
+        "pets_overview": "Питомцы",
+        "quick_actions": "Быстрые действия",
+        "add_pet": "Добавить питомца",
+        "add_event": "Добавить событие",
+        "add_log": "Добавить симптом",
+        "add_expense": "Добавить расход",
+        "onboarding_title": "Начни с первого питомца",
+        "onboarding_copy": "Самый полезный старт здесь простой: добавить питомца, создать 1-2 события ухода и дальше уже получать напоминания.",
+        "pet_title": "Питомцы",
+        "pet_select": "Выбери питомца",
+        "pet_form_title": "Профиль питомца",
+        "pet_saved": "Питомец сохранен.",
+        "starter_calendar": "Добавить стартовый календарь",
+        "starter_added": "Стартовые события добавлены.",
+        "pet_photo": "Фото",
+        "pet_name": "Кличка",
         "species": "Вид",
-        "dog": "Собака",
-        "cat": "Кошка",
-        "age_years": "Возраст (лет)",
-        "weight_lb": "Вес (lb)",
-        "breed_or_mix": "Порода или метис",
-        "triggers": "Известные триггеры",
-        "triggers_placeholder": "Звонок в дверь, пылесос, чужие люди, ночь, поездки",
-        "conditions": "Что важно учитывать",
-        "save_profile": "Сохранить профиль",
-        "update_profile": "Обновить профиль",
-        "delete_pet": "Удалить сохраненный профиль",
-        "profile_saved": "Профиль для {name} сохранен.",
-        "profile_deleted": "Сохраненный профиль удален.",
-        "behavior_tab": "Поведенческий коуч",
-        "routine_tab": "Рутинный план",
-        "history_tab": "История",
-        "coach_title": "Поведенческий коуч",
-        "coach_caption": "Опиши, что происходит, когда это случается и насколько это сильно. Ниже будет спокойный план на сегодня, а не тревожная паника.",
-        "issue_type": "Что ближе всего к проблеме?",
-        "description": "Что происходит?",
-        "description_placeholder": "Например: Он лает и царапает дверь, когда я ухожу. Начинается уже после того, как я беру ключи, и через 2-3 минуты усиливается.",
-        "when_happens": "Когда это обычно случается?",
-        "intensity": "Насколько это сильно",
-        "duration": "Как давно это идет?",
-        "optional_details": "Необязательные детали",
-        "already_tried": "Что вы уже пробовали?",
-        "tried_placeholder": "Лакомства, длинные прогулки, клетка, игнорирование, белый шум, больше игр...",
-        "upload_scene": "Добавить фото обстановки (необязательно)",
-        "photo_note": "Фото помогает понять окружение. Если загружается только фото без текста, нужен подключенный OPENAI_API_KEY.",
-        "analyze_behavior": "Собрать мой план",
-        "need_input": "Сначала добавь короткое описание или фото обстановки.",
-        "photo_only_warning": "Для коучинга только по фото нужен OPENAI_API_KEY или короткое описание под фото.",
-        "reading_photo": "Читаю фото обстановки...",
-        "result": "Результат",
-        "empty_title": "Начни с одной поведенческой проблемы.",
-        "empty_copy": "Ты получишь вероятный паттерн, шаги на сегодня, план на 7 дней и подсказку, когда уже подключать ветеринара или тренера.",
-        "detected_signals": "Что я учел",
-        "image_read_title": "Что я замечаю в обстановке",
-        "confidence": "Уверенность: {value}",
-        "ask_follow_up": "Задать уточняющий вопрос",
-        "question": "Вопрос",
-        "follow_up_placeholder": "Что мне сделать первым делом сегодня вечером?",
-        "answer_follow_up": "Ответить",
-        "routine_title": "Рутинный план",
-        "routine_caption": "Простая спокойная база на каждый день. Сначала держим это, потом сверху добавляем точечный план по проблеме.",
-        "weekly_focus": "Фокус недели",
-        "history_title": "Пока нет сессий коучинга",
-        "history_copy": "После первого запуска здесь появятся последние поведенческие планы.",
-        "clear_history": "Очистить историю",
-        "history_empty": "Пока ничего нет",
-        "history_behavior": "Поведенческий коуч",
-        "help_note": "Pet Help AI — это коуч, а не инструмент для диагноза. Резкие изменения, боль, проблемы с мочеиспусканием или тяжелый дистресс требуют более быстрого контакта с ветеринаром.",
-        "chewy": "Chewy",
-        "amazon": "Amazon",
+        "breed": "Порода",
+        "birth_date": "Дата рождения",
+        "birth_date_known": "Я знаю точную дату рождения",
+        "age_text": "Возраст текстом (необязательно)",
+        "sex": "Пол",
+        "weight": "Вес",
+        "sterilized": "Стерилизован / кастрирован",
+        "color": "Цвет / особые приметы",
+        "allergies": "Аллергии",
+        "chronic_conditions": "Хронические особенности",
+        "chip_number": "Номер чипа",
+        "clinic_name": "Ветклиника",
+        "vet_name": "Врач",
+        "save_pet": "Сохранить питомца",
+        "update_pet": "Обновить питомца",
+        "pet_card_upcoming": "Ближайшее важное действие",
+        "pet_card_spend": "Расходы за месяц",
+        "pet_card_records": "Последние записи",
+        "calendar_title": "Календарь ухода",
+        "calendar_copy": "Одна чистая точка для прививок, обработок, груминга, покупок корма и своих напоминаний.",
+        "event_type": "Тип события",
+        "event_title": "Название",
+        "event_description": "Заметка",
+        "scheduled_date": "Дата",
+        "scheduled_time": "Время",
+        "recurrence": "Повтор",
+        "reminders": "Напоминания",
+        "create_event": "Создать событие",
+        "event_saved": "Событие добавлено.",
+        "complete": "Отметить выполненным",
+        "miss": "Отметить пропущенным",
+        "health_title": "Журнал здоровья и ухода",
+        "disclaimer": "Сервис не ставит диагнозы. Если симптомы тревожат, свяжитесь с ветеринаром.",
+        "log_type": "Тип записи",
+        "symptom": "Симптом",
+        "severity": "Тяжесть",
+        "description": "Описание",
+        "appetite": "Аппетит",
+        "activity": "Активность",
+        "stool": "Стул / рвота",
+        "mood": "Настроение",
+        "attachment": "Фото или видео",
+        "save_log": "Сохранить запись",
+        "log_saved": "Запись здоровья добавлена.",
+        "medication_title": "Лекарства и процедуры",
+        "medicine_name": "Название лекарства",
+        "dosage": "Дозировка",
+        "frequency": "Частота",
+        "start_date": "Дата начала",
+        "end_date": "Дата окончания",
+        "course_has_end": "У курса есть дата окончания",
+        "note": "Комментарий",
+        "save_course": "Сохранить курс",
+        "course_saved": "Курс лекарства добавлен.",
+        "mark_given": "Я дал лекарство",
+        "weight_title": "Трекер веса",
+        "weight_date": "Дата измерения",
+        "weight_note": "Комментарий к весу",
+        "save_weight": "Сохранить вес",
+        "weight_saved": "Запись веса добавлена.",
+        "expenses_title": "Расходы",
+        "category": "Категория",
+        "amount": "Сумма",
+        "currency": "Валюта",
+        "spent_at": "Дата расхода",
+        "save_expense": "Сохранить расход",
+        "expense_saved": "Расход добавлен.",
+        "documents_title": "Документы",
+        "document_type": "Тип документа",
+        "document_note": "Заметка к документу",
+        "upload_document": "Загрузить документ",
+        "document_saved": "Документ добавлен.",
+        "subscription_title": "Подписка",
+        "trial_action": "Запустить 7-дневный триал",
+        "monthly_action": "Активировать месячный Premium",
+        "yearly_action": "Активировать годовой Premium",
+        "cancel_action": "Отменить подписку",
+        "subscription_saved": "Подписка обновлена.",
+        "settings_title": "Настройки",
+        "notifications_email": "Email-напоминания",
+        "notifications_in_app": "In-app напоминания",
+        "notifications_push": "Push-напоминания",
+        "save_settings": "Сохранить настройки",
+        "settings_saved": "Настройки обновлены.",
+        "new_password": "Новый пароль",
+        "support_title": "Поддержка",
+        "support_subject": "Тема",
+        "support_message": "Сообщение",
+        "send_ticket": "Отправить тикет",
+        "ticket_saved": "Тикет в поддержку создан.",
+        "admin_title": "Админка",
+        "users": "Пользователи",
+        "subscriptions": "Подписки",
+        "analytics": "Аналитика",
+        "support": "Поддержка",
+        "paywall_title": "Открыть Premium",
+        "paywall_copy": "Premium открывает несколько питомцев, безлимитные напоминания, хранение документов, полную историю, аналитику и семейный формат использования.",
+        "second_pet_lock": "На Free доступен 1 питомец. Premium открывает несколько питомцев.",
+        "event_limit_lock": "На Free календарь ограничен. Premium открывает безлимитные повторяющиеся события.",
+        "document_lock": "Хранение документов доступно в Premium.",
+        "no_data": "Пока ничего нет.",
+        "next_charge": "Следующее списание",
+        "status": "Статус",
+        "month_total": "За месяц",
+        "all_time_total": "За все время",
+        "open_paywall": "Посмотреть тарифы",
+        "value_line": "Не пропускайте важный уход. Храните всё по питомцу в одном месте.",
     },
 }
 
-CONDITION_LABELS = {
-    "en": {
-        "recent_adoption": "Recent adoption",
-        "rescue_history": "Rescue or unknown history",
-        "senior_pet": "Senior pet",
-        "pain_or_mobility": "Pain or mobility concerns",
-        "noise_sensitivity": "Noise sensitivity",
-        "multi_pet_home": "Multi-pet home",
-    },
-    "ru": {
-        "recent_adoption": "Недавнее появление в доме",
-        "rescue_history": "Приют или неизвестная история",
-        "senior_pet": "Пожилой питомец",
-        "pain_or_mobility": "Есть боль или сложности с движением",
-        "noise_sensitivity": "Чувствительность к шуму",
-        "multi_pet_home": "В доме несколько питомцев",
-    },
-}
 
-WHEN_LABELS = {
-    "en": {
-        "home_alone": "When left home alone",
-        "guests": "When guests or visitors appear",
-        "walks": "On walks or near the front door",
-        "car": "In the car or before a trip",
-        "night": "At night",
-        "anytime": "Across the day",
-        "litter_box": "Around the litter box",
-        "mealtime": "Around food, toys, or high-value items",
-        "new_home": "Since a recent change",
-    },
-    "ru": {
-        "home_alone": "Когда остается один дома",
-        "guests": "Когда приходят гости или люди",
-        "walks": "На прогулках или у входной двери",
-        "car": "В машине или перед поездкой",
-        "night": "Ночью",
-        "anytime": "В течение дня",
-        "litter_box": "Вокруг лотка",
-        "mealtime": "Возле еды, игрушек или ценных вещей",
-        "new_home": "После недавних перемен",
-    },
-}
-
-INTENSITY_LABELS = {
-    "en": {"low": "Low", "medium": "Medium", "high": "High"},
-    "ru": {"low": "Низко", "medium": "Средне", "high": "Сильно"},
-}
-
-DURATION_LABELS = {
-    "en": {"sudden": "Started suddenly", "days": "A few days", "weeks": "A few weeks", "months": "A month or more"},
-    "ru": {"sudden": "Началось резко", "days": "Несколько дней", "weeks": "Несколько недель", "months": "Месяц и больше"},
-}
-
-
-def t(key: str, language: str, **kwargs: str) -> str:
-    text = UI_TEXT[language].get(key, key)
-    return text.format(**kwargs) if kwargs else text
+def tr(key: str, language: str) -> str:
+    return TEXT[language_code(language)].get(key, key)
 
 
 def load_logo_data_uri() -> str | None:
     for filename in LOGO_CANDIDATES:
-        candidate = ASSETS_DIR / filename
-        if not candidate.exists():
-            continue
-        mime_type = {
-            ".svg": "image/svg+xml",
-            ".png": "image/png",
-            ".webp": "image/webp",
-            ".jpg": "image/jpeg",
-            ".jpeg": "image/jpeg",
-        }.get(candidate.suffix.lower(), "image/png")
-        encoded = base64.b64encode(candidate.read_bytes()).decode("ascii")
-        return f"data:{mime_type};base64,{encoded}"
+        file_path = ASSETS_DIR / filename
+        if file_path.exists():
+            mime = {
+                ".png": "image/png",
+                ".svg": "image/svg+xml",
+                ".jpg": "image/jpeg",
+                ".jpeg": "image/jpeg",
+                ".webp": "image/webp",
+            }.get(file_path.suffix.lower(), "image/png")
+            encoded = base64.b64encode(file_path.read_bytes()).decode("ascii")
+            return f"data:{mime};base64,{encoded}"
     return None
 
 
-def default_pet() -> dict[str, object]:
-    return {
-        "id": "",
-        "name": "",
-        "species": "dog",
-        "age_years": 4.0,
-        "weight_lb": 35.0,
-        "breed": "",
-        "triggers": "",
-        "conditions": [],
-    }
+def inject_local_overrides() -> None:
+    st.markdown(
+        """
+        <style>
+        .metric-card {
+            background: #ffffff;
+            border: 1px solid rgba(20,54,59,0.08);
+            border-radius: 16px;
+            padding: 0.9rem 1rem;
+            margin-bottom: 0.7rem;
+        }
+        .pet-card {
+            background: #ffffff;
+            border: 1px solid rgba(20,54,59,0.08);
+            border-radius: 18px;
+            padding: 1rem;
+            margin-bottom: 0.9rem;
+        }
+        .pet-card h4, .metric-card h4 {
+            margin: 0 0 0.35rem;
+            color: #14363b;
+        }
+        .pet-meta {
+            color: rgba(20,54,59,0.6);
+            font-size: 0.88rem;
+            margin-bottom: 0.5rem;
+        }
+        .warning-box {
+            background: #fff8ed;
+            border: 1px solid rgba(176,121,31,0.18);
+            border-radius: 16px;
+            padding: 0.9rem 1rem;
+            margin-bottom: 0.8rem;
+        }
+        .lock-box {
+            background: #ffffff;
+            border: 1px dashed rgba(20,54,59,0.18);
+            border-radius: 18px;
+            padding: 1rem 1.05rem;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 
 def ensure_state() -> None:
     if "language" not in st.session_state:
         st.session_state.language = "ru"
-    if "pets" not in st.session_state:
-        st.session_state.pets = []
-    if "active_pet_id" not in st.session_state:
-        st.session_state.active_pet_id = None
-    if "history" not in st.session_state:
-        st.session_state.history = []
-    if "last_analysis" not in st.session_state:
-        st.session_state.last_analysis = None
-    if "follow_up_answer" not in st.session_state:
-        st.session_state.follow_up_answer = ""
-    if "follow_up_question" not in st.session_state:
-        st.session_state.follow_up_question = ""
-    if "pet_choice" not in st.session_state:
-        st.session_state.pet_choice = NEW_PROFILE
-
-    required_inputs = [
-        "pet_name_input",
-        "species_input",
-        "age_input",
-        "weight_input",
-        "breed_input",
-        "triggers_input",
-        "conditions_input",
-    ]
-    if any(key not in st.session_state for key in required_inputs):
-        load_pet_into_inputs(default_pet())
+    if "user_id" not in st.session_state:
+        st.session_state.user_id = None
+    if "nav" not in st.session_state:
+        st.session_state.nav = "dashboard"
+    if "selected_pet_id" not in st.session_state:
+        st.session_state.selected_pet_id = None
 
 
-def get_pet_by_id(pet_id: str | None) -> dict[str, object] | None:
-    if not pet_id:
+def go_to(page: str) -> None:
+    st.session_state.nav = page
+
+
+def combine_date_time(d: date, t: time) -> str:
+    return datetime.combine(d, t).replace(second=0, microsecond=0).isoformat()
+
+
+def selected_pet_id(pets: list[dict[str, object]]) -> int | None:
+    if not pets:
         return None
-    for pet in st.session_state.pets:
-        if pet["id"] == pet_id:
-            return pet
-    return None
+    valid_ids = [pet["id"] for pet in pets]
+    if st.session_state.selected_pet_id not in valid_ids:
+        st.session_state.selected_pet_id = valid_ids[0]
+    return st.session_state.selected_pet_id
 
 
-def load_pet_into_inputs(pet: dict[str, object]) -> None:
-    st.session_state.pet_name_input = str(pet.get("name", ""))
-    st.session_state.species_input = str(pet.get("species", "dog"))
-    st.session_state.age_input = float(pet.get("age_years", 4.0) or 4.0)
-    st.session_state.weight_input = float(pet.get("weight_lb", 35.0) or 35.0)
-    st.session_state.breed_input = str(pet.get("breed", ""))
-    st.session_state.triggers_input = str(pet.get("triggers", ""))
-    st.session_state.conditions_input = list(pet.get("conditions", []))
-
-
-def current_pet_from_inputs(language: str) -> dict[str, object]:
-    name = (st.session_state.get("pet_name_input") or "").strip()
-    return {
-        "id": st.session_state.get("active_pet_id") or "",
-        "name": name or t("pet_default_name", language),
-        "species": st.session_state.get("species_input", "dog"),
-        "age_years": float(st.session_state.get("age_input", 4.0)),
-        "weight_lb": float(st.session_state.get("weight_input", 35.0)),
-        "breed": (st.session_state.get("breed_input") or "").strip(),
-        "triggers": (st.session_state.get("triggers_input") or "").strip(),
-        "conditions": list(st.session_state.get("conditions_input", [])),
-    }
-
-
-def on_pet_choice_change() -> None:
-    choice = st.session_state.get("pet_choice", NEW_PROFILE)
-    if choice == NEW_PROFILE:
-        st.session_state.active_pet_id = None
-        load_pet_into_inputs(default_pet())
-        return
-    pet = get_pet_by_id(choice)
-    if pet:
-        st.session_state.active_pet_id = pet["id"]
-        load_pet_into_inputs(pet)
-
-
-def persist_current_pet(language: str) -> str:
-    pet = current_pet_from_inputs(language)
-    pet_name = str(pet["name"])
-    active_pet_id = st.session_state.get("active_pet_id")
-
-    if active_pet_id:
-        for index, saved_pet in enumerate(st.session_state.pets):
-            if saved_pet["id"] == active_pet_id:
-                updated = dict(pet)
-                updated["id"] = active_pet_id
-                st.session_state.pets[index] = updated
-                st.session_state.pet_choice = active_pet_id
-                return pet_name
-
-    pet_id = str(uuid4())
-    saved = dict(pet)
-    saved["id"] = pet_id
-    st.session_state.pets.append(saved)
-    st.session_state.active_pet_id = pet_id
-    st.session_state.pet_choice = pet_id
-    return pet_name
-
-
-def delete_active_pet() -> bool:
-    active_pet_id = st.session_state.get("active_pet_id")
-    if not active_pet_id:
-        return False
-    st.session_state.pets = [pet for pet in st.session_state.pets if pet["id"] != active_pet_id]
-    st.session_state.active_pet_id = None
-    st.session_state.pet_choice = NEW_PROFILE
-    load_pet_into_inputs(default_pet())
-    return True
-
-
-def render_brand_logo(logo_uri: str | None) -> str:
+def render_brand(logo_uri: str | None, language: str, current_user: dict[str, object] | None, subscription: dict[str, object] | None) -> None:
     if logo_uri:
-        return f'<img src="{logo_uri}" alt="Pet Help AI logo" class="brand-mark"/>'
-    return '<div class="brand-fallback">PH</div>'
+        mark = f'<img src="{logo_uri}" alt="Pet Help AI logo" class="sidebar-brand-mark"/>'
+    else:
+        mark = '<div class="sidebar-brand-mark sidebar-fallback">PH</div>'
 
+    plan_text = ""
+    if subscription:
+        plan_text = f"{tr('plan', language)}: {status_badge(str(subscription.get('status', 'free')), language)}"
 
-def render_sidebar_brand(logo_uri: str | None, language: str) -> None:
-    mark = (
-        f'<img src="{logo_uri}" alt="Pet Help AI logo" class="sidebar-brand-mark"/>'
-        if logo_uri
-        else '<div class="sidebar-brand-mark sidebar-fallback">PH</div>'
-    )
     st.sidebar.markdown(
         f"""
         <div class="sidebar-brand">
             {mark}
             <div>
                 <div class="sidebar-brand-name">Pet Help AI</div>
-                <div class="sidebar-brand-copy">{escape(t("tagline", language))}</div>
+                <div class="sidebar-brand-copy">{escape(tr('app_tagline', language))}</div>
             </div>
+        </div>
+        <div class="sidebar-note">
+            <strong>{escape(str(current_user['name'])) if current_user else 'Pet Help AI'}</strong><br/>
+            {escape(plan_text)}
         </div>
         """,
         unsafe_allow_html=True,
     )
 
 
-def render_header(pet: dict[str, object], logo_uri: str | None, language: str) -> None:
-    species_label = t(str(pet["species"]), language)
-    summary = f"{species_label}, {pet['age_years']:.0f}y, {pet['weight_lb']:.0f} lb"
+def render_auth(language: str) -> None:
+    st.title("Pet Help AI")
+    st.caption(tr("app_tagline", language))
+    tab_login, tab_register, tab_reset = st.tabs([tr("login", language), tr("register", language), tr("reset", language)])
+
+    with tab_login:
+        with st.form("login_form"):
+            email = st.text_input(tr("email", language))
+            password = st.text_input(tr("password", language), type="password")
+            submitted = st.form_submit_button(tr("login_button", language), use_container_width=True)
+        if submitted:
+            user = authenticate_user(email, password)
+            if user:
+                st.session_state.user_id = user["id"]
+                st.rerun()
+            else:
+                st.error(tr("auth_error", language))
+
+    with tab_register:
+        with st.form("register_form"):
+            name = st.text_input(tr("name", language))
+            email = st.text_input(tr("email", language), key="register_email")
+            password = st.text_input(tr("password", language), type="password", key="register_password")
+            timezone = st.selectbox(tr("timezone", language), TIMEZONE_OPTIONS)
+            submitted = st.form_submit_button(tr("register_button", language), use_container_width=True)
+        if submitted:
+            try:
+                user = create_user(name or "Pet Parent", email, password, timezone)
+                st.session_state.user_id = user["id"]
+                st.success(tr("register_ok", language))
+                st.rerun()
+            except Exception:
+                st.error("Email already exists.")
+
+    with tab_reset:
+        st.caption(tr("reset_hint", language))
+        with st.form("reset_form"):
+            email = st.text_input(tr("email", language), key="reset_email")
+            password = st.text_input(tr("new_password", language), type="password")
+            submitted = st.form_submit_button(tr("reset_button", language), use_container_width=True)
+        if submitted:
+            if update_password(email, password):
+                st.success(tr("reset_ok", language))
+            else:
+                st.error(tr("auth_error", language))
+
+
+def render_paywall(language: str, message: str) -> None:
+    st.markdown(
+        f"""
+        <div class="lock-box">
+            <h3>{escape(tr('paywall_title', language))}</h3>
+            <p>{escape(message)}</p>
+            <p>{escape(tr('paywall_copy', language))}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    if st.button(tr("open_paywall", language), use_container_width=False):
+        go_to("subscription")
+        st.rerun()
+
+
+def metric_card(title: str, value: str, copy: str = "") -> None:
+    st.markdown(
+        f"""
+        <div class="metric-card">
+            <h4>{escape(title)}</h4>
+            <div style="font-size:1.6rem;color:#14363b;font-weight:700;">{escape(value)}</div>
+            <div class="pet-meta">{escape(copy)}</div>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+
+
+def render_header(current_user: dict[str, object], subscription: dict[str, object], language: str, logo_uri: str | None) -> None:
+    image = f'<img src="{logo_uri}" alt="logo" class="brand-mark"/>' if logo_uri else '<div class="brand-fallback">PH</div>'
     st.markdown(
         f"""
         <div class="app-header">
             <div class="brand-lockup">
-                {render_brand_logo(logo_uri)}
+                {image}
                 <div>
                     <div class="brand-name">Pet Help AI</div>
                     <div class="brand-domain">pethelpai.com</div>
                 </div>
             </div>
             <div class="app-summary">
-                <div class="app-summary-label">{escape(t("active_pet", language))}</div>
-                <div class="app-summary-name">{escape(str(pet["name"]))}</div>
-                <div class="app-summary-copy">{escape(summary)}{f" • {escape(str(pet['breed']))}" if pet['breed'] else ''}</div>
+                <div class="app-summary-label">{escape(tr('plan', language))}</div>
+                <div class="app-summary-name">{escape(str(current_user['name']))}</div>
+                <div class="app-summary-copy">{escape(status_badge(str(subscription.get('status', 'free')), language))} • {escape(tr('value_line', language))}</div>
             </div>
         </div>
         """,
@@ -436,346 +667,730 @@ def render_header(pet: dict[str, object], logo_uri: str | None, language: str) -
     )
 
 
-def render_list_card(title: str, items: list[str]) -> None:
-    list_html = "".join(f"<li>{escape(item)}</li>" for item in items if item)
-    st.markdown(
-        f"""
-        <div class="detail-card">
-            <h4>{escape(title)}</h4>
-            <ul>{list_html}</ul>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_result(result: dict[str, object], language: str) -> None:
-    class_name = {
-        "safe": "result-safe",
-        "caution": "result-caution",
-        "avoid": "result-avoid",
-    }.get(str(result.get("verdict", "safe")), "result-safe")
-
-    st.markdown(
-        f"""
-        <div class="result-card {class_name}">
-            <div class="result-pill">{escape(str(result.get("badge_label", "")))}</div>
-            <h2 class="result-title">{escape(str(result.get("result_title", "")))}</h2>
-            <p class="result-copy">{escape(str(result.get("summary", "")))}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-    confidence_text = t("confidence", language, value=str(result.get("confidence", "")))
-    st.caption(confidence_text)
-
-    if result.get("image_summary"):
-        render_list_card(t("image_read_title", language), [str(result["image_summary"])])
-
-    render_list_card(str(result.get("drivers_title", "")), list(result.get("drivers", [])))
-    render_list_card(str(result.get("today_title", "")), list(result.get("today_steps", [])))
-    render_list_card(str(result.get("week_title", "")), list(result.get("week_plan", [])))
-    render_list_card(str(result.get("vet_title", "")), list(result.get("vet_flags", [])))
-
-    toolkit_items = list(result.get("toolkit_items", []))
-    if toolkit_items:
-        st.markdown(f"##### {escape(str(result.get('toolkit_title', '')))}")
-        for item in toolkit_items:
-            st.markdown(
-                f"""
-                <div class="swap-card">
-                    <div class="swap-label">{escape(str(result.get("toolkit_title", "")))}</div>
-                    <h4>{escape(item["title"])}</h4>
-                    <p>{escape(item["body"])}</p>
-                </div>
-                """,
-                unsafe_allow_html=True,
-            )
-            col1, col2 = st.columns(2)
-            col1.link_button(t("chewy", language), item["chewy_url"], use_container_width=True)
-            col2.link_button(t("amazon", language), item["amazon_url"], use_container_width=True)
-
-    with st.expander(t("detected_signals", language), expanded=False):
-        for signal in result.get("detected_signals", []):
-            st.markdown(f"- {signal}")
-
-
-def render_empty_state(title: str, copy: str) -> None:
-    st.markdown(
-        f"""
-        <div class="empty-state">
-            <h3>{escape(title)}</h3>
-            <p>{escape(copy)}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-
-
-def render_follow_up(language: str) -> None:
-    result = st.session_state.get("last_analysis")
-    if not result:
-        return
-
-    with st.expander(t("ask_follow_up", language), expanded=False):
-        st.text_input(t("question", language), key="follow_up_question", placeholder=t("follow_up_placeholder", language))
-        if st.button(t("answer_follow_up", language), use_container_width=True):
-            question = (st.session_state.get("follow_up_question") or "").strip()
-            if question:
-                st.session_state.follow_up_answer = answer_follow_up(question, result, language=language)
-        if st.session_state.get("follow_up_answer"):
-            st.markdown(
-                f"""
-                <div class="soft-note">{escape(st.session_state.follow_up_answer)}</div>
-                """,
-                unsafe_allow_html=True,
-            )
-
-
-def render_sidebar(logo_uri: str | None, language: str) -> None:
-    render_sidebar_brand(logo_uri, language)
-
+def render_sidebar(current_user: dict[str, object], subscription: dict[str, object], language: str, logo_uri: str | None) -> str:
+    render_brand(logo_uri, language, current_user, subscription)
     st.sidebar.selectbox(
-        t("language", language),
-        LANGUAGE_OPTIONS,
-        index=LANGUAGE_OPTIONS.index(language),
-        format_func=lambda code: t(f"language_{code}", language),
+        tr("language", language),
+        ["ru", "en"],
+        index=0 if language == "ru" else 1,
         key="language",
+        format_func=lambda code: tr(f"lang_{code}", language),
     )
-
+    nav_labels = {
+        "dashboard": tr("nav_dashboard", language),
+        "pets": tr("nav_pets", language),
+        "calendar": tr("nav_calendar", language),
+        "health": tr("nav_health", language),
+        "expenses": tr("nav_expenses", language),
+        "documents": tr("nav_documents", language),
+        "subscription": tr("nav_subscription", language),
+        "settings": tr("nav_settings", language),
+    }
+    pages = NAV_ITEMS + (["admin"] if current_user.get("role") == "admin" else [])
+    selected = st.sidebar.radio(
+        " ",
+        pages,
+        index=pages.index(st.session_state.nav) if st.session_state.nav in pages else 0,
+        format_func=lambda item: nav_labels.get(item, tr("nav_admin", language)),
+    )
+    st.session_state.nav = selected
+    pending_notifications = len(list_notifications(int(current_user["id"]), only_pending=True))
     st.sidebar.markdown(
         f"""
-        <div class="sidebar-note">
-            <strong>{escape(t("pet_profile", language))}</strong><br/>
-            {escape(t("profile_hint", language))}
+        <div class="soft-note">
+            <strong>{escape(tr('notifications', language))}</strong><br/>
+            {pending_notifications}
         </div>
         """,
         unsafe_allow_html=True,
     )
-
-    options = [NEW_PROFILE] + [pet["id"] for pet in st.session_state.pets]
-    if st.session_state.get("pet_choice") not in options:
-        st.session_state.pet_choice = st.session_state.get("active_pet_id") or NEW_PROFILE
-
-    st.sidebar.selectbox(
-        t("profile_picker", language),
-        options,
-        format_func=lambda value: (
-            t("new_profile", language) if value == NEW_PROFILE else str(get_pet_by_id(value)["name"])
-        ),
-        key="pet_choice",
-        on_change=on_pet_choice_change,
-    )
-
-    st.sidebar.text_input(t("pet_name", language), key="pet_name_input")
-    st.sidebar.selectbox(
-        t("species", language),
-        ["dog", "cat"],
-        format_func=lambda value: t(value, language),
-        key="species_input",
-    )
-    st.sidebar.number_input(t("age_years", language), min_value=0.0, max_value=30.0, step=0.5, key="age_input")
-    st.sidebar.number_input(t("weight_lb", language), min_value=1.0, max_value=250.0, step=1.0, key="weight_input")
-    st.sidebar.text_input(t("breed_or_mix", language), key="breed_input")
-    st.sidebar.text_area(
-        t("triggers", language),
-        key="triggers_input",
-        height=90,
-        placeholder=t("triggers_placeholder", language),
-    )
-    st.sidebar.multiselect(
-        t("conditions", language),
-        CONDITION_OPTIONS,
-        format_func=lambda value: CONDITION_LABELS[language][value],
-        key="conditions_input",
-    )
-
-    save_label = t("update_profile", language) if st.session_state.get("active_pet_id") else t("save_profile", language)
-    if st.sidebar.button(save_label, use_container_width=True):
-        saved_name = persist_current_pet(language)
-        st.sidebar.success(t("profile_saved", language, name=saved_name))
-    if st.session_state.get("active_pet_id") and st.sidebar.button(t("delete_pet", language), use_container_width=True):
-        if delete_active_pet():
-            st.sidebar.success(t("profile_deleted", language))
-
-    st.sidebar.markdown(
-        f"""
-        <div class="soft-note">{escape(t("help_note", language))}</div>
-        """,
-        unsafe_allow_html=True,
-    )
+    if st.sidebar.button(tr("logout", language), use_container_width=True):
+        st.session_state.user_id = None
+        st.rerun()
+    return selected
 
 
-def run_behavior_coach(current_pet: dict[str, object], language: str) -> None:
-    st.subheader(t("coach_title", language))
-    st.caption(t("coach_caption", language))
-
-    issue_choices = behavior_issue_choices(str(current_pet["species"]), language)
-    issue_keys = [key for key, _label in issue_choices]
-    issue_labels = {key: label for key, label in issue_choices}
-
-    with st.form("behavior_coach_form", clear_on_submit=False):
-        issue_key = st.selectbox(
-            t("issue_type", language),
-            issue_keys,
-            format_func=lambda key: issue_labels[key],
+def save_pet_form(user_id: int, language: str, pet: dict[str, object] | None = None) -> None:
+    is_edit = pet is not None
+    with st.form(f"pet_form_{pet['id'] if pet else 'new'}", clear_on_submit=not is_edit):
+        avatar = st.file_uploader(tr("pet_photo", language), type=["png", "jpg", "jpeg", "webp"], key=f"avatar_{pet['id'] if pet else 'new'}")
+        name = st.text_input(tr("pet_name", language), value=str(pet["name"]) if pet else "")
+        c1, c2 = st.columns(2)
+        species = c1.selectbox(
+            tr("species", language),
+            SPECIES_OPTIONS,
+            index=SPECIES_OPTIONS.index(str(pet["species"])) if pet and pet["species"] in SPECIES_OPTIONS else 0,
+            format_func=lambda key: label(SPECIES_LABELS, key, language),
         )
-        description = st.text_area(
-            t("description", language),
-            height=140,
-            placeholder=t("description_placeholder", language),
+        breed = c2.text_input(tr("breed", language), value=str(pet["breed"]) if pet else "")
+        c3, c4 = st.columns(2)
+        birth_value = date.fromisoformat(pet["birth_date"]) if pet and pet.get("birth_date") else date.today()
+        birth_known = c3.checkbox(tr("birth_date_known", language), value=bool(pet and pet.get("birth_date")))
+        birth_date_value = c4.date_input(tr("birth_date", language), value=birth_value)
+        age_text = st.text_input(tr("age_text", language), value=str(pet["age_text"]) if pet else "")
+        c5, c6, c7 = st.columns(3)
+        sex = c5.selectbox(
+            tr("sex", language),
+            SEX_OPTIONS,
+            index=SEX_OPTIONS.index(str(pet["sex"])) if pet and pet.get("sex") in SEX_OPTIONS else 2,
+            format_func=lambda key: label(SEX_LABELS, key, language),
         )
-
-        col1, col2, col3 = st.columns(3)
-        when_happens = col1.selectbox(
-            t("when_happens", language),
-            WHEN_OPTIONS,
-            format_func=lambda key: WHEN_LABELS[language][key],
-        )
-        intensity = col2.selectbox(
-            t("intensity", language),
-            INTENSITY_OPTIONS,
-            format_func=lambda key: INTENSITY_LABELS[language][key],
-        )
-        duration = col3.selectbox(
-            t("duration", language),
-            DURATION_OPTIONS,
-            format_func=lambda key: DURATION_LABELS[language][key],
-        )
-
-        with st.expander(t("optional_details", language), expanded=False):
-            already_tried = st.text_area(
-                t("already_tried", language),
-                height=110,
-                placeholder=t("tried_placeholder", language),
-            )
-            photo = st.file_uploader(
-                t("upload_scene", language),
-                type=["png", "jpg", "jpeg", "webp"],
-                help=t("photo_note", language),
-            )
-
-        submitted = st.form_submit_button(t("analyze_behavior", language), use_container_width=True)
+        weight = c6.number_input(tr("weight", language), min_value=0.1, step=0.1, value=float(pet["weight"]) if pet and pet.get("weight") else 1.0)
+        sterilized = c7.checkbox(tr("sterilized", language), value=bool(pet["sterilized"]) if pet else False)
+        color = st.text_input(tr("color", language), value=str(pet["color"]) if pet else "")
+        allergies = st.text_area(tr("allergies", language), value=str(pet["allergies"]) if pet else "", height=70)
+        chronic_conditions = st.text_area(tr("chronic_conditions", language), value=str(pet["chronic_conditions"]) if pet else "", height=70)
+        c8, c9, c10 = st.columns(3)
+        chip_number = c8.text_input(tr("chip_number", language), value=str(pet["chip_number"]) if pet else "")
+        clinic_name = c9.text_input(tr("clinic_name", language), value=str(pet["clinic_name"]) if pet else "")
+        vet_name = c10.text_input(tr("vet_name", language), value=str(pet["vet_name"]) if pet else "")
+        submitted = st.form_submit_button(tr("update_pet", language) if is_edit else tr("save_pet", language), use_container_width=True)
 
     if submitted:
-        if not description.strip() and photo is None:
-            st.warning(t("need_input", language))
-        elif photo is not None and not description.strip() and not has_openai_key():
-            st.warning(t("photo_only_warning", language))
+        avatar_url = pet["avatar_url"] if pet else None
+        if avatar is not None:
+            avatar_url = save_uploaded_file(avatar, user_id, "avatar")
+        payload = {
+            "name": name,
+            "species": species,
+            "breed": breed,
+            "birth_date": birth_date_value.isoformat() if birth_known and birth_date_value else None,
+            "age_text": age_text,
+            "sex": sex,
+            "weight": float(weight),
+            "sterilized": sterilized,
+            "color": color,
+            "allergies": allergies,
+            "chronic_conditions": chronic_conditions,
+            "chip_number": chip_number,
+            "avatar_url": avatar_url,
+            "clinic_name": clinic_name,
+            "vet_name": vet_name,
+        }
+        if is_edit:
+            update_pet(int(pet["id"]), user_id, payload)
         else:
-            image_context = None
-            if photo is not None and has_openai_key():
-                with st.spinner(t("reading_photo", language)):
-                    image_context = extract_behavior_context_from_image(photo.getvalue(), photo.type, language=language)
-
-            result = analyze_behavior(
-                pet_name=str(current_pet["name"]),
-                species=str(current_pet["species"]),
-                age_years=float(current_pet["age_years"]),
-                weight_lb=float(current_pet["weight_lb"]),
-                breed=str(current_pet["breed"]),
-                triggers=str(current_pet["triggers"]),
-                conditions=list(current_pet["conditions"]),
-                issue_key=issue_key,
-                description=description,
-                when_happens=when_happens,
-                intensity=intensity,
-                duration=duration,
-                already_tried=already_tried,
-                image_context=image_context,
-                language=language,
-            )
-            st.session_state.last_analysis = result
-            st.session_state.follow_up_answer = ""
-            st.session_state.follow_up_question = ""
-            st.session_state.history = [
-                {
-                    "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M"),
-                    "kind": t("history_behavior", language),
-                    "pet_name": current_pet["name"],
-                    "issue_label": result["issue_label"],
-                    "badge_label": result["badge_label"],
-                    "summary": result["summary"],
-                }
-            ] + st.session_state.history[:11]
-
-    st.markdown(f"##### {escape(t('result', language))}")
-    if st.session_state.get("last_analysis"):
-        render_result(st.session_state.last_analysis, language)
-        render_follow_up(language)
-    else:
-        render_empty_state(t("empty_title", language), t("empty_copy", language))
+            create_pet(user_id, payload)
+        st.success(tr("pet_saved", language))
+        st.rerun()
 
 
-def render_routine_tab(current_pet: dict[str, object], language: str) -> None:
-    guide = get_routine_guide(current_pet, language)
-    st.subheader(t("routine_title", language))
-    st.caption(t("routine_caption", language))
-    st.markdown(
-        f"""
-        <div class="section-card">
-            <div class="section-kicker">Baseline</div>
-            <p>{escape(str(guide['summary']))}</p>
-        </div>
-        """,
-        unsafe_allow_html=True,
-    )
-    for section in guide["sections"]:
-        render_list_card(str(section["title"]), list(section["items"]))
-    render_list_card(str(guide["weekly_title"]), list(guide["weekly_focus"]))
+def render_dashboard(user: dict[str, object], subscription: dict[str, object], pets: list[dict[str, object]], language: str) -> None:
+    st.title(tr("dashboard_title", language))
+    upcoming = list_upcoming_events(int(user["id"]))
+    today_tasks = list_today_tasks(int(user["id"]))
+    expenses = list_expenses(int(user["id"]))
+    weights = list_weight_logs(int(user["id"]))
+    medications = list_medication_courses(int(user["id"]))
+    notifications = list_notifications(int(user["id"]))
 
-
-def render_history_tab(language: str) -> None:
-    st.subheader(t("history_tab", language))
-    if st.button(t("clear_history", language), use_container_width=False):
-        st.session_state.history = []
-
-    if not st.session_state.history:
-        render_empty_state(t("history_title", language), t("history_copy", language))
+    if not pets:
+        render_empty_onboarding(int(user["id"]), subscription, language)
         return
 
-    for entry in st.session_state.history:
+    recommendations = smart_recommendations(
+        pets=pets,
+        events=upcoming,
+        weights=weights,
+        expenses=expenses,
+        medications=medications,
+        subscription=subscription,
+        language=language,
+    )
+
+    c1, c2, c3, c4 = st.columns(4)
+    with c1:
+        metric_card(tr("nav_pets", language), str(len(pets)))
+    with c2:
+        metric_card(tr("today_tasks", language), str(len(today_tasks)))
+    with c3:
+        metric_card(tr("notifications", language), str(len(notifications)))
+    with c4:
+        summary = expense_summary(int(user["id"]))
+        metric_card(tr("month_total", language), f"${summary['month']:.0f}")
+
+    action1, action2, action3 = st.columns(3)
+    if action1.button(tr("add_event", language), use_container_width=True):
+        go_to("calendar")
+        st.rerun()
+    if action2.button(tr("add_log", language), use_container_width=True):
+        go_to("health")
+        st.rerun()
+    if action3.button(tr("add_expense", language), use_container_width=True):
+        go_to("expenses")
+        st.rerun()
+
+    if recommendations:
+        st.markdown(f"#### {tr('recommendations', language)}")
+        for item in recommendations:
+            st.markdown(f"<div class='warning-box'>{escape(item)}</div>", unsafe_allow_html=True)
+
+    st.markdown(f"#### {tr('today_tasks', language)}")
+    if today_tasks:
+        for task in today_tasks:
+            cols = st.columns([6, 2, 2])
+            cols[0].markdown(
+                f"**{escape(task['title'])}**  \n{escape(task['pet_name'])} • {escape(format_datetime(task['scheduled_at'], language))}"
+            )
+            if cols[1].button(tr("complete", language), key=f"dash_complete_{task['id']}", use_container_width=True):
+                mark_event_completed(int(user["id"]), int(task["id"]))
+                st.rerun()
+            if cols[2].button(tr("miss", language), key=f"dash_miss_{task['id']}", use_container_width=True):
+                mark_event_missed(int(user["id"]), int(task["id"]))
+                st.rerun()
+    else:
+        st.info(tr("no_data", language))
+
+    st.markdown(f"#### {tr('notifications', language)}")
+    if notifications:
+        for note in notifications[:5]:
+            title = note.get("event_title") or note["message"]
+            cols = st.columns([8, 2])
+            cols[0].markdown(f"**{escape(str(title))}**  \n{escape(note.get('pet_name') or '')} • {escape(format_datetime(note['send_at'], language))}")
+            if cols[1].button("OK", key=f"note_{note['id']}", use_container_width=True):
+                mark_notification_read(int(user["id"]), int(note["id"]))
+                st.rerun()
+    else:
+        st.info(tr("no_data", language))
+
+    st.markdown(f"#### {tr('pets_overview', language)}")
+    health_logs = list_health_logs(int(user["id"]))
+    for pet in pets:
+        pet_upcoming = [event for event in upcoming if event["pet_id"] == pet["id"]]
+        records = pet_recent_records(int(pet["id"]), list_care_events(int(user["id"]), pet_id=int(pet["id"])), health_logs)
+        next_item = pet_upcoming[0] if pet_upcoming else None
         st.markdown(
             f"""
-            <div class="history-item">
-                <div class="history-meta">{escape(str(entry['timestamp']))} • {escape(str(entry['kind']))}</div>
-                <strong>{escape(str(entry['pet_name']))}</strong> • {escape(str(entry['issue_label']))}<br/>
-                <em>{escape(str(entry['badge_label']))}</em>
-                <p>{escape(str(entry['summary']))}</p>
+            <div class="pet-card">
+                <h4>{escape(str(pet['name']))}</h4>
+                <div class="pet-meta">{escape(label(SPECIES_LABELS, str(pet['species']), language))} • {escape(pet_age_display(pet.get('birth_date'), pet.get('age_text'), language))}</div>
+                <div><strong>{escape(tr('pet_card_upcoming', language))}:</strong> {escape(next_item['title']) if next_item else '—'}</div>
+                <div><strong>{escape(tr('pet_card_spend', language))}:</strong> ${pet_month_expense(expenses, int(pet['id'])):.0f}</div>
             </div>
             """,
             unsafe_allow_html=True,
         )
+        if records:
+            for record in records[:3]:
+                st.caption(f"{record['title']} • {format_datetime(record['timestamp'], language)}")
+
+
+def render_empty_onboarding(user_id: int, subscription: dict[str, object], language: str) -> None:
+    st.markdown(
+        f"""
+        <div class="empty-state">
+            <h3>{escape(tr('onboarding_title', language))}</h3>
+            <p>{escape(tr('onboarding_copy', language))}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    save_pet_form(user_id, language)
+
+
+def render_pets_page(user: dict[str, object], subscription: dict[str, object], pets: list[dict[str, object]], language: str) -> None:
+    st.title(tr("pet_title", language))
+    limits = free_limits(subscription)
+    premium = subscription_is_premium(subscription)
+
+    if not pets:
+        render_empty_onboarding(int(user["id"]), subscription, language)
+        return
+
+    col_main, col_side = st.columns([2, 1])
+    with col_side:
+        if st.button(tr("add_pet", language), use_container_width=True):
+            if limits["max_pets"] is not None and count_user_pets(int(user["id"])) >= limits["max_pets"]:
+                log_product_event(int(user["id"]), "paywall_opened", {"source": "second_pet"})
+                render_paywall(language, tr("second_pet_lock", language))
+            else:
+                st.session_state.show_new_pet_form = True
+        if st.session_state.get("show_new_pet_form"):
+            save_pet_form(int(user["id"]), language)
+
+    selected_id = selected_pet_id(pets)
+    pet_map = {pet["id"]: pet for pet in pets}
+    pet = pet_map[selected_id] if selected_id else pets[0]
+
+    with col_main:
+        st.selectbox(
+            tr("pet_select", language),
+            [item["id"] for item in pets],
+            index=[item["id"] for item in pets].index(pet["id"]),
+            format_func=lambda item: str(pet_map[item]["name"]),
+            key="selected_pet_id",
+        )
+        pet = pet_map[st.session_state.selected_pet_id]
+
+        if pet.get("avatar_url") and Path(str(pet["avatar_url"])).exists():
+            st.image(str(pet["avatar_url"]), width=180)
+
+        c1, c2, c3 = st.columns(3)
+        c1.metric(tr("species", language), label(SPECIES_LABELS, str(pet["species"]), language))
+        c2.metric(tr("weight", language), f"{pet.get('weight') or '—'} lb")
+        c3.metric("Age", pet_age_display(pet.get("birth_date"), pet.get("age_text"), language))
+
+        st.markdown(f"#### {tr('pet_form_title', language)}")
+        save_pet_form(int(user["id"]), language, pet)
+
+        if st.button(tr("starter_calendar", language), use_container_width=False):
+            for template in starter_calendar_template(str(pet["species"]), language):
+                create_care_event(
+                    int(user["id"]),
+                    {
+                        "pet_id": int(pet["id"]),
+                        **template,
+                    },
+                )
+            st.success(tr("starter_added", language))
+            st.rerun()
+
+        pet_events = list_care_events(int(user["id"]), pet_id=int(pet["id"]))
+        pet_logs = list_health_logs(int(user["id"]), pet_id=int(pet["id"]))
+        pet_docs = list_documents(int(user["id"]), pet_id=int(pet["id"]))
+        pet_expenses = [row for row in list_expenses(int(user["id"]), pet_id=int(pet["id"]))]
+        st.markdown(f"#### {tr('pet_card_upcoming', language)}")
+        if pet_events:
+            for event in pet_events[:5]:
+                st.markdown(f"- {event['title']} • {format_datetime(event['scheduled_at'], language)} • {status_badge(event_status(event), language)}")
+        else:
+            st.info(tr("no_data", language))
+
+        st.markdown(f"#### {tr('pet_card_records', language)}")
+        recent = pet_recent_records(int(pet["id"]), pet_events, pet_logs)
+        if recent:
+            for item in recent:
+                st.markdown(f"- {item['title']} • {format_datetime(item['timestamp'], language)}")
+        else:
+            st.info(tr("no_data", language))
+
+        st.markdown(f"#### {tr('documents_title', language)}")
+        st.caption(f"{len(pet_docs)} docs • ${sum(item['amount'] for item in pet_expenses):.0f} total spend")
+
+
+def render_calendar_page(user: dict[str, object], subscription: dict[str, object], pets: list[dict[str, object]], language: str) -> None:
+    st.title(tr("calendar_title", language))
+    st.caption(tr("calendar_copy", language))
+    if not pets:
+        render_empty_onboarding(int(user["id"]), subscription, language)
+        return
+
+    limits = free_limits(subscription)
+    with st.expander(tr("add_event", language), expanded=True):
+        with st.form("event_form"):
+            pet_id = st.selectbox(tr("pet_select", language), [pet["id"] for pet in pets], format_func=lambda item: next(p["name"] for p in pets if p["id"] == item))
+            event_type = st.selectbox(tr("event_type", language), EVENT_TYPES, format_func=lambda key: label(EVENT_TYPE_LABELS, key, language))
+            title = st.text_input(tr("event_title", language))
+            description = st.text_area(tr("event_description", language), height=80)
+            c1, c2 = st.columns(2)
+            event_date = c1.date_input(tr("scheduled_date", language), value=date.today())
+            event_time = c2.time_input(tr("scheduled_time", language), value=time(10, 0))
+            c3, c4 = st.columns(2)
+            recurrence = c3.selectbox(tr("recurrence", language), RECURRENCE_OPTIONS, format_func=lambda key: label(RECURRENCE_LABELS, key, language))
+            reminders = c4.multiselect(tr("reminders", language), REMINDER_OPTIONS, default=["1d", "day_of"], format_func=lambda key: label(REMINDER_LABELS, key, language))
+            submitted = st.form_submit_button(tr("create_event", language), use_container_width=True)
+        if submitted:
+            if limits["max_events"] is not None and count_active_events(int(user["id"])) >= limits["max_events"]:
+                log_product_event(int(user["id"]), "paywall_opened", {"source": "event_limit"})
+                render_paywall(language, tr("event_limit_lock", language))
+            else:
+                if not limits["advanced_reminders"] and len(reminders) > 2:
+                    reminders = reminders[:2]
+                create_care_event(
+                    int(user["id"]),
+                    {
+                        "pet_id": pet_id,
+                        "type": event_type,
+                        "title": title or label(EVENT_TYPE_LABELS, event_type, language),
+                        "description": description,
+                        "scheduled_at": combine_date_time(event_date, event_time),
+                        "recurrence_rule": recurrence,
+                        "reminder_settings": reminders,
+                    },
+                )
+                st.success(tr("event_saved", language))
+                st.rerun()
+
+    events = list_care_events(int(user["id"]))
+    event_filter_pet = st.selectbox(tr("pet_select", language), ["all"] + [pet["id"] for pet in pets], format_func=lambda value: tr("nav_pets", language) if value == "all" else next(p["name"] for p in pets if p["id"] == value))
+    filtered = [event for event in events if event_filter_pet == "all" or event["pet_id"] == event_filter_pet]
+    warning = upcoming_warning_level(filtered[:5])
+    if warning != "calm":
+        text = "Urgent reminders are close." if language == "en" else "Есть очень близкие напоминания."
+        st.markdown(f"<div class='warning-box'>{escape(text)}</div>", unsafe_allow_html=True)
+    for event in filtered:
+        status = event_status(event)
+        cols = st.columns([6, 2, 2])
+        cols[0].markdown(
+            f"**{escape(event['title'])}**  \n{escape(event['pet_name'])} • {escape(label(EVENT_TYPE_LABELS, event['type'], language))} • {escape(format_datetime(event['scheduled_at'], language))} • {escape(status_badge(status, language))}"
+        )
+        if status == "planned" and cols[1].button(tr("complete", language), key=f"event_complete_{event['id']}", use_container_width=True):
+            mark_event_completed(int(user["id"]), int(event["id"]))
+            st.rerun()
+        if status == "planned" and cols[2].button(tr("miss", language), key=f"event_miss_{event['id']}", use_container_width=True):
+            mark_event_missed(int(user["id"]), int(event["id"]))
+            st.rerun()
+
+
+def render_health_page(user: dict[str, object], subscription: dict[str, object], pets: list[dict[str, object]], language: str) -> None:
+    st.title(tr("health_title", language))
+    st.caption(tr("disclaimer", language))
+    if not pets:
+        render_empty_onboarding(int(user["id"]), subscription, language)
+        return
+
+    tab_logs, tab_meds, tab_weight = st.tabs([tr("health_title", language), tr("medication_title", language), tr("weight_title", language)])
+
+    with tab_logs:
+        with st.form("health_form"):
+            pet_id = st.selectbox(tr("pet_select", language), [pet["id"] for pet in pets], format_func=lambda item: next(p["name"] for p in pets if p["id"] == item), key="health_pet")
+            log_type = st.selectbox(tr("log_type", language), LOG_TYPES, format_func=lambda key: label(LOG_TYPE_LABELS, key, language))
+            symptom = st.text_input(tr("symptom", language))
+            severity = st.selectbox(tr("severity", language), SEVERITY_OPTIONS, format_func=lambda key: label(SEVERITY_LABELS, key, language))
+            description = st.text_area(tr("description", language), height=90)
+            c1, c2, c3 = st.columns(3)
+            appetite = c1.text_input(tr("appetite", language))
+            activity = c2.text_input(tr("activity", language))
+            stool = c3.text_input(tr("stool", language))
+            mood = st.text_input(tr("mood", language))
+            attachment = st.file_uploader(tr("attachment", language), type=["png", "jpg", "jpeg", "webp", "mp4", "mov"], key="health_attachment")
+            submitted = st.form_submit_button(tr("save_log", language), use_container_width=True)
+        if submitted:
+            attachment_url = save_uploaded_file(attachment, int(user["id"]), "health") if attachment else None
+            create_health_log(
+                int(user["id"]),
+                {
+                    "pet_id": pet_id,
+                    "log_type": log_type,
+                    "symptom": symptom,
+                    "severity": severity,
+                    "description": description,
+                    "attachment_url": attachment_url,
+                    "recorded_at": now_iso_local(),
+                    "appetite": appetite,
+                    "activity": activity,
+                    "stool_vomit": stool,
+                    "mood": mood,
+                },
+            )
+            st.success(tr("log_saved", language))
+            st.rerun()
+
+        logs = list_health_logs(int(user["id"]))
+        for item in logs[:20]:
+            st.markdown(f"**{item.get('symptom') or label(LOG_TYPE_LABELS, item['log_type'], language)}**  \n{item['pet_name']} • {format_datetime(item['recorded_at'], language)}")
+            if item.get("description"):
+                st.caption(item["description"])
+
+    with tab_meds:
+        with st.form("med_form"):
+            pet_id = st.selectbox(tr("pet_select", language), [pet["id"] for pet in pets], format_func=lambda item: next(p["name"] for p in pets if p["id"] == item), key="med_pet")
+            medicine_name = st.text_input(tr("medicine_name", language))
+            dosage = st.text_input(tr("dosage", language))
+            frequency = st.selectbox(tr("frequency", language), MEDICATION_FREQUENCIES, format_func=lambda key: label(MEDICATION_FREQUENCY_LABELS, key, language))
+            c1, c2 = st.columns(2)
+            start = c1.date_input(tr("start_date", language), value=date.today(), key="med_start")
+            has_end_date = c2.checkbox(tr("course_has_end", language), value=False)
+            end = st.date_input(tr("end_date", language), value=date.today(), key="med_end")
+            note = st.text_area(tr("note", language), height=80)
+            submitted = st.form_submit_button(tr("save_course", language), use_container_width=True)
+        if submitted:
+            create_medication_course(
+                int(user["id"]),
+                {
+                    "pet_id": pet_id,
+                    "medicine_name": medicine_name,
+                    "dosage": dosage,
+                    "frequency": frequency,
+                    "start_date": datetime.combine(start, time(9, 0)).isoformat(),
+                    "end_date": datetime.combine(end, time(9, 0)).isoformat() if has_end_date else None,
+                    "note": note,
+                },
+            )
+            st.success(tr("course_saved", language))
+            st.rerun()
+
+        courses = list_medication_courses(int(user["id"]))
+        for course in courses:
+            cols = st.columns([7, 2])
+            cols[0].markdown(
+                f"**{course['medicine_name']}**  \n{course['pet_name']} • {label(MEDICATION_FREQUENCY_LABELS, course['frequency'], language)} • {format_datetime(course.get('next_due_at'), language)}"
+            )
+            if course["status"] == "active" and cols[1].button(tr("mark_given", language), key=f"med_{course['id']}", use_container_width=True):
+                mark_medication_given(int(user["id"]), int(course["id"]))
+                st.rerun()
+
+    with tab_weight:
+        with st.form("weight_form"):
+            pet_id = st.selectbox(tr("pet_select", language), [pet["id"] for pet in pets], format_func=lambda item: next(p["name"] for p in pets if p["id"] == item), key="weight_pet")
+            c1, c2 = st.columns(2)
+            weight = c1.number_input(tr("weight", language), min_value=0.1, step=0.1)
+            measured = c2.date_input(tr("weight_date", language), value=date.today())
+            note = st.text_input(tr("weight_note", language))
+            submitted = st.form_submit_button(tr("save_weight", language), use_container_width=True)
+        if submitted:
+            add_weight_log(int(user["id"]), pet_id, float(weight), datetime.combine(measured, time(9, 0)).isoformat(), note)
+            st.success(tr("weight_saved", language))
+            st.rerun()
+
+        weight_logs = list_weight_logs(int(user["id"]))
+        if weight_logs:
+            frame = pd.DataFrame(weight_logs)
+            frame["measured_at"] = pd.to_datetime(frame["measured_at"])
+            chart = frame[["measured_at", "weight"]].set_index("measured_at")
+            st.line_chart(chart)
+            st.dataframe(frame[["pet_name", "weight", "measured_at", "note"]], use_container_width=True)
+        else:
+            st.info(tr("no_data", language))
+
+
+def render_expenses_page(user: dict[str, object], subscription: dict[str, object], pets: list[dict[str, object]], language: str) -> None:
+    st.title(tr("expenses_title", language))
+    if not pets:
+        render_empty_onboarding(int(user["id"]), subscription, language)
+        return
+
+    with st.form("expense_form"):
+        pet_id = st.selectbox(tr("pet_select", language), [pet["id"] for pet in pets], format_func=lambda item: next(p["name"] for p in pets if p["id"] == item))
+        c1, c2, c3 = st.columns(3)
+        category = c1.selectbox(tr("category", language), EXPENSE_CATEGORIES, format_func=lambda key: label(EXPENSE_CATEGORY_LABELS, key, language))
+        amount = c2.number_input(tr("amount", language), min_value=0.0, step=1.0)
+        currency = c3.text_input(tr("currency", language), value="USD")
+        spent_at = st.date_input(tr("spent_at", language), value=date.today())
+        note = st.text_input(tr("note", language))
+        submitted = st.form_submit_button(tr("save_expense", language), use_container_width=True)
+    if submitted:
+        add_expense(
+            int(user["id"]),
+            {
+                "pet_id": pet_id,
+                "category": category,
+                "amount": amount,
+                "currency": currency,
+                "spent_at": datetime.combine(spent_at, time(9, 0)).isoformat(),
+                "note": note,
+            },
+        )
+        st.success(tr("expense_saved", language))
+        st.rerun()
+
+    summary = expense_summary(int(user["id"]))
+    c1, c2 = st.columns(2)
+    c1.metric(tr("month_total", language), f"${summary['month']:.0f}")
+    c2.metric(tr("all_time_total", language), f"${summary['all_time']:.0f}")
+    monthly_rows = monthly_expense_rows(int(user["id"]))
+    if monthly_rows:
+        frame = pd.DataFrame(monthly_rows).set_index("month")
+        st.bar_chart(frame)
+    expenses = list_expenses(int(user["id"]))
+    if expenses:
+        st.dataframe(pd.DataFrame(expenses)[["pet_name", "category", "amount", "currency", "spent_at", "note"]], use_container_width=True)
+    else:
+        st.info(tr("no_data", language))
+
+
+def render_documents_page(user: dict[str, object], subscription: dict[str, object], pets: list[dict[str, object]], language: str) -> None:
+    st.title(tr("documents_title", language))
+    if not pets:
+        render_empty_onboarding(int(user["id"]), subscription, language)
+        return
+    if not subscription_is_premium(subscription):
+        render_paywall(language, tr("document_lock", language))
+        return
+
+    with st.form("document_form"):
+        pet_id = st.selectbox(tr("pet_select", language), [pet["id"] for pet in pets], format_func=lambda item: next(p["name"] for p in pets if p["id"] == item))
+        doc_type = st.selectbox(tr("document_type", language), DOCUMENT_TYPES, format_func=lambda key: label(DOCUMENT_TYPE_LABELS, key, language))
+        note = st.text_input(tr("document_note", language))
+        file = st.file_uploader(tr("upload_document", language), type=["png", "jpg", "jpeg", "webp", "pdf", "txt"])
+        submitted = st.form_submit_button(tr("upload_document", language), use_container_width=True)
+    if submitted and file is not None:
+        path = save_uploaded_file(file, int(user["id"]), "document")
+        create_document(
+            int(user["id"]),
+            {
+                "pet_id": pet_id,
+                "type": doc_type,
+                "file_url": path,
+                "file_name": file.name,
+                "uploaded_at": now_iso_local(),
+                "note": note,
+            },
+        )
+        st.success(tr("document_saved", language))
+        st.rerun()
+
+    docs = list_documents(int(user["id"]))
+    for doc in docs:
+        file_path = Path(str(doc["file_url"]))
+        st.markdown(f"**{doc['file_name']}**  \n{doc['pet_name']} • {label(DOCUMENT_TYPE_LABELS, doc['type'], language)} • {format_datetime(doc['uploaded_at'], language)}")
+        if file_path.exists():
+            if file_path.suffix.lower() in {".png", ".jpg", ".jpeg", ".webp"}:
+                st.image(str(file_path), width=240)
+            with st.expander(doc["file_name"], expanded=False):
+                st.download_button(doc["file_name"], data=file_path.read_bytes(), file_name=doc["file_name"])
+
+
+def render_subscription_page(user: dict[str, object], subscription: dict[str, object], language: str) -> None:
+    st.title(tr("subscription_title", language))
+    st.markdown(
+        f"""
+        <div class="section-card">
+            <div class="section-kicker">{escape(tr('status', language))}</div>
+            <h3>{escape(status_badge(str(subscription.get('status', 'free')), language))}</h3>
+            <p>{escape(tr('value_line', language))}</p>
+        </div>
+        """,
+        unsafe_allow_html=True,
+    )
+    c1, c2, c3 = st.columns(3)
+    if c1.button(tr("trial_action", language), use_container_width=True):
+        start_trial(int(user["id"]))
+        st.success(tr("subscription_saved", language))
+        st.rerun()
+    if c2.button(tr("monthly_action", language), use_container_width=True):
+        activate_subscription(int(user["id"]), "premium_monthly")
+        st.success(tr("subscription_saved", language))
+        st.rerun()
+    if c3.button(tr("yearly_action", language), use_container_width=True):
+        activate_subscription(int(user["id"]), "premium_yearly")
+        st.success(tr("subscription_saved", language))
+        st.rerun()
+    if subscription.get("status") in {"trialing", "active", "canceled"}:
+        st.caption(f"{tr('next_charge', language)}: {next_due_text(subscription, language)}")
+        if st.button(tr("cancel_action", language), use_container_width=False):
+            cancel_subscription(int(user["id"]))
+            st.success(tr("subscription_saved", language))
+            st.rerun()
+
+    st.markdown("### Free vs Premium")
+    free_col, premium_col = st.columns(2)
+    free_col.markdown(
+        """
+        - 1 pet
+        - Basic dashboard
+        - Limited calendar
+        - Basic reminders
+        - Basic health log
+        - Basic expenses
+        """
+    )
+    premium_col.markdown(
+        """
+        - Multiple pets
+        - Unlimited recurring events
+        - Full history
+        - Documents and files
+        - Expense analytics
+        - Trial and renewal flow
+        """
+    )
+
+
+def render_settings_page(user: dict[str, object], language: str) -> None:
+    st.title(tr("settings_title", language))
+    with st.form("settings_form"):
+        name = st.text_input(tr("name", language), value=str(user["name"]))
+        timezone = st.selectbox(tr("timezone", language), TIMEZONE_OPTIONS, index=TIMEZONE_OPTIONS.index(str(user["timezone"])) if str(user["timezone"]) in TIMEZONE_OPTIONS else 0)
+        c1, c2, c3 = st.columns(3)
+        email_on = c1.checkbox(tr("notifications_email", language), value=bool(user["notification_email"]))
+        in_app = c2.checkbox(tr("notifications_in_app", language), value=bool(user["notification_in_app"]))
+        push_on = c3.checkbox(tr("notifications_push", language), value=bool(user["notification_push"]))
+        submitted = st.form_submit_button(tr("save_settings", language), use_container_width=True)
+    if submitted:
+        update_user_settings(int(user["id"]), name=name, timezone=timezone, notification_email=email_on, notification_in_app=in_app, notification_push=push_on)
+        st.success(tr("settings_saved", language))
+        st.rerun()
+
+    st.markdown(f"### {tr('reset', language)}")
+    with st.form("password_change_form"):
+        new_password = st.text_input(tr("new_password", language), type="password")
+        submitted = st.form_submit_button(tr("reset_button", language), use_container_width=False)
+    if submitted and new_password:
+        update_password(str(user["email"]), new_password)
+        st.success(tr("reset_ok", language))
+
+    st.markdown(f"### {tr('support_title', language)}")
+    with st.form("support_form"):
+        subject = st.text_input(tr("support_subject", language))
+        message = st.text_area(tr("support_message", language), height=120)
+        submitted = st.form_submit_button(tr("send_ticket", language), use_container_width=False)
+    if submitted and subject and message:
+        create_support_ticket(int(user["id"]), subject, message)
+        st.success(tr("ticket_saved", language))
+
+
+def render_admin_page(language: str) -> None:
+    st.title(tr("admin_title", language))
+    summary = analytics_summary()
+    totals = summary["totals"]
+    c1, c2, c3, c4 = st.columns(4)
+    c1.metric(tr("users", language), str(totals["users"]))
+    c2.metric(tr("nav_pets", language), str(totals["pets"]))
+    c3.metric(tr("subscriptions", language), str(totals["subscriptions"]))
+    c4.metric("DAU / WAU / MAU", f"{totals['dau']} / {totals['wau']} / {totals['mau']}")
+
+    st.markdown(f"### {tr('analytics', language)}")
+    if summary["events"]:
+        st.dataframe(pd.DataFrame(summary["events"]), use_container_width=True)
+    st.markdown(f"### {tr('users', language)}")
+    st.dataframe(pd.DataFrame(admin_users()), use_container_width=True)
+    st.markdown(f"### {tr('support', language)}")
+    tickets = list_support_tickets()
+    if tickets:
+        st.dataframe(pd.DataFrame(tickets), use_container_width=True)
+    else:
+        st.info(tr("no_data", language))
+
+
+def now_iso_local() -> str:
+    return datetime.utcnow().replace(microsecond=0).isoformat()
 
 
 def main() -> None:
+    init_db()
     st.set_page_config(page_title="Pet Help AI", page_icon="🐾", layout="wide")
     inject_styles()
+    inject_local_overrides()
     ensure_state()
 
-    language = st.session_state.language
+    language = language_code(st.session_state.language)
     logo_uri = load_logo_data_uri()
-    render_sidebar(logo_uri, language)
-    language = st.session_state.language
-    current_pet = current_pet_from_inputs(language)
 
-    render_header(current_pet, logo_uri, language)
+    if not st.session_state.user_id:
+        render_auth(language)
+        return
 
-    tabs = st.tabs(
-        [
-            t("behavior_tab", language),
-            t("routine_tab", language),
-            t("history_tab", language),
-        ]
-    )
+    refresh_subscription_state(int(st.session_state.user_id))
+    user = get_user(int(st.session_state.user_id))
+    if not user:
+        st.session_state.user_id = None
+        st.rerun()
+        return
+    subscription = get_subscription(int(user["id"]))
+    pets = list_pets(int(user["id"]))
 
-    with tabs[0]:
-        run_behavior_coach(current_pet, language)
-    with tabs[1]:
-        render_routine_tab(current_pet, language)
-    with tabs[2]:
-        render_history_tab(language)
+    render_header(user, subscription, language, logo_uri)
+    selected_page = render_sidebar(user, subscription, language, logo_uri)
+
+    if selected_page == "dashboard":
+        render_dashboard(user, subscription, pets, language)
+    elif selected_page == "pets":
+        render_pets_page(user, subscription, pets, language)
+    elif selected_page == "calendar":
+        render_calendar_page(user, subscription, pets, language)
+    elif selected_page == "health":
+        render_health_page(user, subscription, pets, language)
+    elif selected_page == "expenses":
+        render_expenses_page(user, subscription, pets, language)
+    elif selected_page == "documents":
+        render_documents_page(user, subscription, pets, language)
+    elif selected_page == "subscription":
+        render_subscription_page(user, subscription, language)
+    elif selected_page == "settings":
+        render_settings_page(user, language)
+    elif selected_page == "admin" and user.get("role") == "admin":
+        render_admin_page(language)
 
 
 if __name__ == "__main__":
